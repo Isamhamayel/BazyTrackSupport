@@ -21,7 +21,7 @@
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
         // Initialize the map
-        var map = L.map('map').setView([31.95013, 35.92487], 13); // Default center at a location
+        var map = L.map('map').setView([48.118477, 11.539421], 13); // Default center at a location
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
@@ -62,71 +62,64 @@
 
             // Construct the body payload for the API request
             var requestBody = {
-                points: pointsParam, // Points in [longitude, latitude] format
-                snap_preventions: ["motorway", "ferry", "tunnel"],
-                details: ["road_class", "surface"],
+                points: pointsParam,
                 profile: "car",
-                locale: "en",
-                instructions: true,
-                calc_points: true,
-                points_encoded: false
+                instructions: true
             };
 
-            // Make the API request using fetch
+            // Make the API request
             fetch(url, {
-                method: "POST", // POST method because we are sending data in the body
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json' // JSON format for the body
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(requestBody) // Convert the body to a JSON string
+                body: JSON.stringify(requestBody)
             })
-            .then(function(response) {
-                return response.json(); // Parse JSON response
-            })
-            .then(function(data) {
+            .then(response => response.json())
+            .then(data => {
                 console.log(data);
                 if (data.paths && data.paths.length > 0) {
-                    // Handle the route data here
-                    displayRoutes(data.paths);
+                    displayRoute(data.paths);
                 } else {
-                    alert('No route found.');
+                    alert("No route found.");
                 }
             })
-            .catch(function(error) {
+            .catch(error => {
                 console.error('Error fetching route:', error);
             });
         }
 
-        // Function to display multiple routes and their details
-        function displayRoutes(routes) {
-            var routeInfoDiv = document.getElementById("route-info");
-            routeInfoDiv.innerHTML = ""; // Clear previous route info
+        // Function to display the route on the map
+        function displayRoute(paths) {
+            var routeInfo = document.getElementById('route-info');
+            routeInfo.innerHTML = ''; // Clear the route info
 
-            routes.forEach(function(route, index) {
-                // Display route length and time for each route
-                var distanceInKm = (route.distance / 1000).toFixed(2); // Convert from meters to kilometers
-                var timeInMinutes = (route.time / 60000).toFixed(0); // Convert from milliseconds to minutes
-                var routeDescription = `
+            paths.forEach((path, index) => {
+                // Create a polyline for each route
+                var routeCoordinates = path.points.coordinates.map(function(coord) {
+                    return [coord[1], coord[0]]; // Reverse back to lat/lng for Leaflet
+                });
+
+                // Add polyline to the map
+                var routePolyline = L.polyline(routeCoordinates, { color: 'blue' }).addTo(map);
+
+                // Display route info (length and time)
+                var distanceKm = (path.distance / 1000).toFixed(2); // Convert meters to kilometers
+                var timeMin = (path.time / 60000).toFixed(2); // Convert milliseconds to minutes
+
+                var routeDetails = `
                     <h3>Route ${index + 1}</h3>
-                    <p><strong>Distance:</strong> ${distanceInKm} km</p>
-                    <p><strong>Time:</strong> ${timeInMinutes} minutes</p>
+                    <p><strong>Distance:</strong> ${distanceKm} km</p>
+                    <p><strong>Time:</strong> ${timeMin} minutes</p>
                 `;
-                
-                // Display the route polyline on the map
-                var routePoints = route.points.coordinates;
-                var routePolyline = L.polyline(routePoints, {color: 'blue'}).addTo(map);
-                map.fitBounds(routePolyline.getBounds()); // Adjust map view to show route
-
-                // Add route details to the info section
-                routeInfoDiv.innerHTML += routeDescription;
-
-                // Optionally, display instructions for the route
-                if (route.instructions) {
-                    route.instructions.forEach(function(instruction) {
-                        routeInfoDiv.innerHTML += `<p>${instruction.text}</p>`;
-                    });
-                }
+                routeInfo.innerHTML += routeDetails;
             });
+
+            // Adjust map bounds to fit the route
+            var bounds = L.latLngBounds(paths[0].points.coordinates.map(function(coord) {
+                return [coord[1], coord[0]]; // Reverse back to lat/lng
+            }));
+            map.fitBounds(bounds);
         }
     </script>
 </body>
