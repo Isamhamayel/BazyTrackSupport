@@ -33,7 +33,7 @@ let points = [];
 
 // Function to handle click event on the map to get points
 map.on('click', function (e) {
-    if (points.length < 8) { // Limit the number of points to 4
+    if (points.length < 8) { // Limit the number of points to 8
         points.push([e.latlng.lat, e.latlng.lng]); // Add clicked point to points array
         L.marker([e.latlng.lat, e.latlng.lng]).addTo(map); // Add a marker at the clicked location
 
@@ -46,17 +46,28 @@ map.on('click', function (e) {
     }
 });
 
-// Function to fetch route from GraphHopper
+// Function to fetch route from GraphHopper (POST request)
 async function getRoute() {
-    const url = 'https://graphhopper.com/api/1/route?key=YOUR_GRAPHHOPPER_API_KEY'; // Replace with your GraphHopper API key
-    const params = {
-        point: points.map(p => `${p[0]},${p[1]}`).join('&point='), // Format the points in 'lat,lon'
+    const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your GraphHopper API key
+
+    // Format the points into 'lat,lon' strings
+    const formattedPoints = points.map(p => `${p[0]},${p[1]}`).join('&point='); // GraphHopper expects `point=lat,lon&point=lat,lon`
+
+    // Prepare the data to be sent in the body
+    const data = {
+        points: `point=${formattedPoints}`, // GraphHopper accepts multiple points separated by '&'
         vehicle: 'car',
-        type: 'json'
+        type: 'json',
+        locale: 'en', // You can specify a language if needed
+        elevation: false // Set to true if you need elevation data
     };
 
     try {
-        const response = await axios.get(url, { params });
+        const response = await axios.post(url, data, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
         displayRoutes(response.data); // Pass the response data to the display function
     } catch (error) {
         console.error('Error fetching route:', error);
