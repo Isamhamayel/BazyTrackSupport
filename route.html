@@ -49,7 +49,7 @@
                 return point[0] + "," + point[1];
             }).join("&point=");
 
-            var url = `https://graphhopper.com/api/1/route?point=${pointsString}&profile=car&locale=en&key=${apiKey}`;
+            var url = `https://graphhopper.com/api/1/route?point=${pointsString}&snap_preventions=motorway,ferry,tunnel&details=road_class,surface&profile=car&locale=en&instructions=true&calc_points=true&points_encoded=false&key=${apiKey}`;
 
             // Debugging: Check the generated URL
             console.log("Route URL: ", url);
