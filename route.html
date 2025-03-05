@@ -21,7 +21,7 @@
 
 <script>
 // Initialize the map
-const map = L.map('map').setView([31.95013, 35.92487], 14); // Default center, zoom level
+const map = L.map('map').setView([48.118477, 11.539421], 14); // Default center, zoom level
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -53,13 +53,10 @@ async function getRoute() {
     // Prepare the data to be sent in the body (correct format)
     const data = {
         points: points,  // Array of points, each point as [lat, lon]
-        snap_preventions: ["motorway", "ferry", "tunnel"], // Snap preventions
-        details: ["road_class", "surface"], // Additional details
-        profile: "car", // Vehicle profile
-        locale: "en", // Locale for instructions
-        instructions: true, // Enable turn-by-turn instructions
-        calc_points: true, // Return route points
-        points_encoded: false // Do not encode points
+        vehicle: 'car',
+        type: 'json',
+        locale: 'en', // You can specify a language if needed
+        elevation: false // Set to true if you need elevation data
     };
 
     try {
