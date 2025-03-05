@@ -8,21 +8,38 @@
 </head>
 <body>
     <div id="map" style="width: 100%; height: 600px;"></div>
-    <p id="route-info"></p>
+    <p id="route-info">Click on the map to set start & end points.</p>
 
     <script>
-        var map = L.map('map').setView([31.963158, 35.930359], 10); // Default to Amman, Jordan
+        var map = L.map('map').setView([31.963158, 35.930359], 10); // Default: Amman, Jordan
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         var apiKey = "e18fd573-f742-4069-8f82-5642fae3450e"; // Replace with your GraphHopper API Key
-        var start = [31.963158, 35.930359]; // Amman
-        var end = [32.0853, 36.1025]; // Destination
+        var points = []; // Stores start and end points
+        var markers = []; // Markers for selected points
+        var routeLayers = []; // Stores route layers
 
+        // Function to clear old routes
+        function clearRoutes() {
+            routeLayers.forEach(layer => map.removeLayer(layer));
+            routeLayers = [];
+        }
+
+        // Function to add marker
+        function addMarker(latlng) {
+            var marker = L.marker(latlng).addTo(map);
+            markers.push(marker);
+        }
+
+        // Function to fetch and display routes
         function fetchRoutes() {
-            var url = `https://graphhopper.com/api/1/route?point=${start[0]},${start[1]}&point=${end[0]},${end[1]}&profile=car&locale=en&alternative_route.max_paths=3&key=${apiKey}`;
+            if (points.length < 2) return;
+
+            clearRoutes(); // Clear previous routes
+            let url = `https://graphhopper.com/api/1/route?point=${points[0][0]},${points[0][1]}&point=${points[1][0]},${points[1][1]}&profile=car&locale=en&alternative_route.max_paths=3&key=${apiKey}`;
 
             fetch(url)
                 .then(response => response.json())
@@ -36,9 +53,11 @@
                         let timeDiff = Math.round((routeTime - bestTime) / 60);
                         let color = index === 0 ? "blue" : "red"; // Best route in blue, others in red
 
-                        L.geoJSON(route.points, {
+                        let routeLayer = L.geoJSON(route.points, {
                             style: { color: color, weight: 4, opacity: 0.7 }
                         }).addTo(map);
+
+                        routeLayers.push(routeLayer); // Store for removal later
 
                         if (index > 0) {
                             info += `Alternative Route ${index}: ${Math.round(routeTime / 60)} min (⏳ +${timeDiff} min)<br>`;
@@ -50,7 +69,18 @@
                 .catch(error => console.error("Error fetching routes:", error));
         }
 
-        fetchRoutes();
+        // Click event to select points
+        map.on('click', function (e) {
+            if (points.length < 2) {
+                let latlng = [e.latlng.lat, e.latlng.lng];
+                points.push(latlng);
+                addMarker(latlng);
+            }
+
+            if (points.length === 2) {
+                fetchRoutes();
+            }
+        });
     </script>
 </body>
 </html>
