@@ -34,7 +34,7 @@ let points = [];
 // Function to handle click event on the map to get points
 map.on('click', function (e) {
     if (points.length < 8) { // Limit the number of points to 8
-        points.push([e.latlng.lat, e.latlng.lng]); // Add clicked point to points array
+        points.push([e.latlng.lng,e.latlng.lat]); // Add clicked point to points array
         L.marker([e.latlng.lat, e.latlng.lng]).addTo(map); // Add a marker at the clicked location
 
         // If there are two or more points, trigger route calculation
