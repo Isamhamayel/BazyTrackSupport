@@ -57,6 +57,9 @@
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
+                    console.log("GraphHopper API Response: ", data); // Log the full response
+
+                    // Check if there are any valid routes
                     if (data.paths && data.paths.length > 0) {
                         var route = data.paths[0]; // Get the best route
                         var routeCoordinates = route.points.coordinates.map(function (coord) {
@@ -68,10 +71,14 @@
                         map.fitBounds(routeLayer.getBounds());
                         document.getElementById("route-info").innerHTML = `Route between selected points is displayed.`;
                     } else {
-                        document.getElementById("route-info").innerHTML = `No route found between the points.`;
+                        console.log("No valid route data found.");
+                        document.getElementById("route-info").innerHTML = `No valid route found between the points.`;
                     }
                 })
-                .catch(error => console.error("Error fetching route:", error));
+                .catch(error => {
+                    console.error("Error fetching route:", error);
+                    document.getElementById("route-info").innerHTML = `Error fetching route.`;
+                });
         }
 
         // Click event to select points
