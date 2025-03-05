@@ -50,12 +50,9 @@ map.on('click', function (e) {
 async function getRoute() {
     const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your GraphHopper API key
 
-    // Format the points into 'lat,lon' strings
-    const formattedPoints = points.map(p => `${p[0]},${p[1]}`).join('&point='); // GraphHopper expects `point=lat,lon&point=lat,lon`
-
-    // Prepare the data to be sent in the body
+    // Prepare the data to be sent in the body (correct format)
     const data = {
-        points: `point=${formattedPoints}`, // GraphHopper accepts multiple points separated by '&'
+        points: points,  // Array of points, each point as [lat, lon]
         vehicle: 'car',
         type: 'json',
         locale: 'en', // You can specify a language if needed
