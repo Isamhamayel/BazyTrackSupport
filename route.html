@@ -3,91 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route from GraphHopper</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios@0.21.1/dist/axios.min.js"></script>
+    <title>Route Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
         #map { height: 600px; }
-        #instructions { margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>Route from GraphHopper</h1>
+    <h2>Click on the map to select points</h2>
     <div id="map"></div>
-    <div id="instructions">
-        <h3>Directions:</h3>
-        <ul id="instruction-list"></ul>
-    </div>
 
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
         // Initialize the map
-        var map = L.map('map').setView([48.118477, 11.539421], 13);
+        var map = L.map('map').setView([48.118477, 11.539421], 13); // Default center at a location
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
-        // Add tile layer to the map
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-        var points = []; // To store clicked points
-        var markers = []; // To store marker objects
-
-        // Function to send the API request to GraphHopper
-        function getRoute() {
-            if (points.length < 2) {
-                alert("Please select at least two points on the map.");
-                return;
-            }
-
-            // Send the POST request to GraphHopper API
-            var requestBody = {
-                points: points,
-                snap_preventions: ["motorway", "ferry", "tunnel"],
-                details: ["road_class", "surface"],
-                profile: "car",
-                locale: "en",
-                instructions: true,
-                calc_points: true,
-                points_encoded: false
-            };
-
-            axios.post('https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e', requestBody)
-                .then(function(response) {
-                    // Extract the route from the response
-                    var route = response.data.paths[0];
-                    var coordinates = route.points.coordinates;
-
-                    // Display the route on the map
-                    var routeLine = L.polyline(coordinates.map(function(coord) {
-                        return [coord[1], coord[0]]; // Convert from lng/lat to lat/lng
-                    }), { color: 'blue' }).addTo(map);
-
-                    // Zoom to the route bounds
-                    map.fitBounds(routeLine.getBounds());
-
-                    // Display the directions
-                    displayInstructions(route.instructions);
-                })
-                .catch(function(error) {
-                    console.error("Error fetching route:", error);
-                });
-        }
-
-        // Function to display directions
-        function displayInstructions(instructions) {
-            var instructionList = document.getElementById('instruction-list');
-            instructionList.innerHTML = ''; // Clear any existing instructions
-            instructions.forEach(function(instruction) {
-                var li = document.createElement('li');
-                li.textContent = instruction.text;
-                instructionList.appendChild(li);
-            });
-        }
+        var points = []; // Array to store points clicked on the map
+        var markers = []; // Array to store marker objects
 
         // Function to add points when clicking on the map
         function onMapClick(e) {
-            if (points.length < 8) { // Limit the number of points to 4
+            if (points.length < 4) { // Limit the number of points to 4
                 // Add the point to the array
                 points.push([e.latlng.lat, e.latlng.lng]);
-
+                
                 // Add marker to the map
                 var marker = L.marker(e.latlng).addTo(map);
                 markers.push(marker);
@@ -101,9 +43,66 @@
             }
         }
 
-        // Add event listener for map click to add points
+        // Add the click event to the map
         map.on('click', onMapClick);
 
+        // Function to fetch the route from GraphHopper API
+        function getRoute() {
+            var url = "https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e"; // GraphHopper API URL
+
+            // Prepare the points array for the JSON format (GraphHopper requires [longitude, latitude])
+            var pointsParam = points.map(function(point) {
+                return [point[1], point[0]]; // Reverse lat/lng order for GraphHopper API
+            });
+
+            // Construct the body payload for the API request
+            var requestBody = {
+                points: pointsParam, // Points in [longitude, latitude] format
+                snap_preventions: ["motorway", "ferry", "tunnel"],
+                details: ["road_class", "surface"],
+                profile: "car",
+                locale: "en",
+                instructions: true,
+                calc_points: true,
+                points_encoded: false
+            };
+
+            // Make the API request using fetch
+            fetch(url, {
+                method: "POST", // POST method because we are sending data in the body
+                headers: {
+                    'Content-Type': 'application/json' // JSON format for the body
+                },
+                body: JSON.stringify(requestBody) // Convert the body to a JSON string
+            })
+            .then(function(response) {
+                return response.json(); // Parse JSON response
+            })
+            .then(function(data) {
+                console.log(data);
+                if (data.paths && data.paths.length > 0) {
+                    // Handle the route data here
+                    displayRoute(data.paths[0]);
+                } else {
+                    alert('No route found.');
+                }
+            })
+            .catch(function(error) {
+                console.error('Error fetching route:', error);
+            });
+        }
+
+        // Function to display the route on the map
+        function displayRoute(routeData) {
+            var routePoints = routeData.points.coordinates;
+            var routePolyline = L.polyline(routePoints, {color: 'blue'}).addTo(map);
+            map.fitBounds(routePolyline.getBounds()); // Adjust map view to show route
+
+            // Display instructions on the console (optional)
+            routeData.instructions.forEach(function(instruction) {
+                console.log(instruction.text);
+            });
+        }
     </script>
 </body>
 </html>
