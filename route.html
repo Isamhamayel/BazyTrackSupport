@@ -7,11 +7,16 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
         #map { height: 600px; }
+        .info {
+            margin: 20px;
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
     <h2>Click on the map to select points</h2>
     <div id="map"></div>
+    <div class="info" id="route-info"></div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script>
@@ -27,7 +32,7 @@
         // Function to add points when clicking on the map
         function onMapClick(e) {
             if (points.length < 4) { // Limit the number of points to 4
-                // Add the point to the array
+                // Add the point to the array (latitude, longitude)
                 points.push([e.latlng.lat, e.latlng.lng]);
                 
                 // Add marker to the map
@@ -52,7 +57,7 @@
 
             // Prepare the points array for the JSON format (GraphHopper requires [longitude, latitude])
             var pointsParam = points.map(function(point) {
-                return [point[1], point[0]]; // Reverse lat/lng order for GraphHopper API
+                return [point[1], point[0]]; // Reverse lat/lng order for GraphHopper API (longitude, latitude)
             });
 
             // Construct the body payload for the API request
@@ -82,7 +87,7 @@
                 console.log(data);
                 if (data.paths && data.paths.length > 0) {
                     // Handle the route data here
-                    displayRoute(data.paths[0]);
+                    displayRoutes(data.paths);
                 } else {
                     alert('No route found.');
                 }
@@ -92,15 +97,35 @@
             });
         }
 
-        // Function to display the route on the map
-        function displayRoute(routeData) {
-            var routePoints = routeData.points.coordinates;
-            var routePolyline = L.polyline(routePoints, {color: 'blue'}).addTo(map);
-            map.fitBounds(routePolyline.getBounds()); // Adjust map view to show route
+        // Function to display multiple routes and their details
+        function displayRoutes(routes) {
+            var routeInfoDiv = document.getElementById("route-info");
+            routeInfoDiv.innerHTML = ""; // Clear previous route info
 
-            // Display instructions on the console (optional)
-            routeData.instructions.forEach(function(instruction) {
-                console.log(instruction.text);
+            routes.forEach(function(route, index) {
+                // Display route length and time for each route
+                var distanceInKm = (route.distance / 1000).toFixed(2); // Convert from meters to kilometers
+                var timeInMinutes = (route.time / 60000).toFixed(0); // Convert from milliseconds to minutes
+                var routeDescription = `
+                    <h3>Route ${index + 1}</h3>
+                    <p><strong>Distance:</strong> ${distanceInKm} km</p>
+                    <p><strong>Time:</strong> ${timeInMinutes} minutes</p>
+                `;
+                
+                // Display the route polyline on the map
+                var routePoints = route.points.coordinates;
+                var routePolyline = L.polyline(routePoints, {color: 'blue'}).addTo(map);
+                map.fitBounds(routePolyline.getBounds()); // Adjust map view to show route
+
+                // Add route details to the info section
+                routeInfoDiv.innerHTML += routeDescription;
+
+                // Optionally, display instructions for the route
+                if (route.instructions) {
+                    route.instructions.forEach(function(instruction) {
+                        routeInfoDiv.innerHTML += `<p>${instruction.text}</p>`;
+                    });
+                }
             });
         }
     </script>
