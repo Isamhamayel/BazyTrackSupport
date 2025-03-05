@@ -53,10 +53,13 @@ async function getRoute() {
     // Prepare the data to be sent in the body (correct format)
     const data = {
         points: points,  // Array of points, each point as [lat, lon]
-        vehicle: 'car',
-        type: 'json',
-        locale: 'en', // You can specify a language if needed
-        elevation: false // Set to true if you need elevation data
+        snap_preventions: ["motorway", "ferry", "tunnel"], // Snap preventions
+        details: ["road_class", "surface"], // Additional details
+        profile: "car", // Vehicle profile
+        locale: "en", // Locale for instructions
+        instructions: true, // Enable turn-by-turn instructions
+        calc_points: true, // Return route points
+        points_encoded: false // Do not encode points
     };
 
     try {
