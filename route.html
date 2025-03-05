@@ -1,100 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Select Points and Display Route</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Planner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <div id="map" style="width: 100%; height: 600px;"></div>
-    <button id="display-route" style="margin: 10px; padding: 10px;">Display Route</button>
-    <p id="route-info">Click on the map to select points, then click the "Display Route" button to show the route.</p>
+    <div id="map" style="height: 500px;"></div>
+    <div id="route-info" style="margin-top: 10px;"></div>
 
     <script>
-        var map = L.map('map').setView([31.963158, 35.930359], 10); // Default: Amman, Jordan
+        // Initialize map
+        var map = L.map('map').setView([48.118477, 11.539421], 13); // Default starting point
 
+        // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        var points = []; // Store the selected points
-        var markers = []; // Store markers
-        var routeLayer; // Store the route layer
+        var points = []; // Array to store selected points
+        var routeLayer = null; // To store the drawn route on the map
 
-        // Function to add marker
-        function addMarker(latlng) {
-            var marker = L.marker(latlng).addTo(map);
-            markers.push(marker);
-        }
-
-        // Function to display the route between multiple points
-        function displayRoute() {
+        // Function to handle map click event and store points
+        map.on('click', function(e) {
             if (points.length < 2) {
-                alert("Please select at least two points.");
-                return;
+                // Add marker at clicked position
+                L.marker(e.latlng).addTo(map);
+                points.push([e.latlng.lat, e.latlng.lng]);
+
+                if (points.length === 2) {
+                    // Once 2 points are selected, fetch the route
+                    fetchRoute(points);
+                }
+            } else {
+                // If more than 2 points are selected, reset points array
+                points = [];
+                map.eachLayer(function(layer) {
+                    if (layer instanceof L.Marker) {
+                        map.removeLayer(layer);
+                    }
+                });
+                document.getElementById("route-info").innerHTML = "Please select two points on the map.";
             }
+        });
 
-            // Clear existing route if present
-            if (routeLayer) {
-                map.removeLayer(routeLayer);
-            }
+        // Function to fetch the route using GraphHopper API
+        function fetchRoute(points) {
+            // Construct the request body with the selected points
+            var requestBody = {
+                "points": points,
+                "snap_preventions": [
+                    "motorway",
+                    "ferry",
+                    "tunnel"
+                ],
+                "details": [
+                    "road_class",
+                    "surface"
+                ],
+                "profile": "car",
+                "locale": "en",
+                "instructions": true,
+                "calc_points": true,
+                "points_encoded": false
+            };
 
-            // Debugging: Check if points are being passed correctly
-            console.log("Selected points: ", points);
+            var url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e';
 
-            // Fetch the route from GraphHopper
-            var apiKey = "e18fd573-f742-4069-8f82-5642fae3450e"; // Your GraphHopper API Key
-            var pointsString = points.map(function(point) {
-                return point[0] + "," + point[1];
-            }).join("&point=");
+            // Send the POST request
+            fetch(url, {
+                method: 'POST', // Use POST method
+                headers: {
+                    'Content-Type': 'application/json' // Set content type to JSON
+                },
+                body: JSON.stringify(requestBody) // Send the data as JSON
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("GraphHopper API Response:", data); // Log the full response
 
-            var url = `https://graphhopper.com/api/1/route?point=${pointsString}&snap_preventions=motorway,ferry,tunnel&details=road_class,surface&profile=car&locale=en&instructions=true&calc_points=true&points_encoded=false&key=${apiKey}`;
-
-            // Debugging: Check the generated URL
-            console.log("Route URL: ", url);
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    console.log("GraphHopper API Response: ", data); // Log the full response
-
-                    // Check if there are any valid routes
-                    if (data.paths && data.paths.length > 0) {
-                        var route = data.paths[0]; // Get the best route
+                if (data.paths && data.paths.length > 0) {
+                    var route = data.paths[0]; // Get the first route
+                    if (route.points && route.points.coordinates) {
                         var routeCoordinates = route.points.coordinates.map(function (coord) {
-                            return [coord[1], coord[0]]; // Switch lat/lon order
+                            return [coord[1], coord[0]];  // Switch lat/lon order for leaflet
                         });
 
-                        // Create a new polyline to display the route
+                        // Remove the existing route layer if any
+                        if (routeLayer) {
+                            map.removeLayer(routeLayer);
+                        }
+
+                        // Create a new polyline to display the route on the map
                         routeLayer = L.polyline(routeCoordinates, { color: 'blue', weight: 4 }).addTo(map);
                         map.fitBounds(routeLayer.getBounds());
-                        document.getElementById("route-info").innerHTML = `Route between selected points is displayed.`;
+                        document.getElementById("route-info").innerHTML = "Route between selected points is displayed.";
                     } else {
-                        console.log("No valid route data found.");
-                        document.getElementById("route-info").innerHTML = `No valid route found between the points.`;
+                        console.log("Route points or coordinates are missing in the response.");
+                        document.getElementById("route-info").innerHTML = "Route data is incomplete.";
                     }
-                })
-                .catch(error => {
-                    console.error("Error fetching route:", error);
-                    document.getElementById("route-info").innerHTML = `Error fetching route.`;
-                });
+                } else {
+                    console.log("No valid route found.");
+                    document.getElementById("route-info").innerHTML = "No valid route found.";
+                }
+            })
+            .catch(error => {
+                console.error("Error fetching route:", error);
+                document.getElementById("route-info").innerHTML = "Error fetching route.";
+            });
         }
-
-        // Click event to select points
-        map.on('click', function (e) {
-            if (points.length < 4) {
-                let latlng = [e.latlng.lat, e.latlng.lng];
-                points.push(latlng);
-                addMarker(latlng);
-                document.getElementById("route-info").innerHTML = `${points.length} point(s) selected.`;
-            }
-        });
-
-        // Add event listener to the button to display the route
-        document.getElementById("display-route").addEventListener('click', function() {
-            displayRoute();
-        });
     </script>
 </body>
 </html>
