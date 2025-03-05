@@ -3,125 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <title>Route Display</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-routing-machine"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <style>
-        #map { height: 600px; }
-        .info {
-            margin: 20px;
-            font-size: 16px;
-        }
+        #map { height: 500px; }
+        #route-info { margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h2>Click on the map to select points</h2>
-    <div id="map"></div>
-    <div class="info" id="route-info"></div>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script>
-        // Initialize the map
-        var map = L.map('map').setView([48.118477, 11.539421], 13); // Default center at a location
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+<div id="map"></div>
+<div id="route-info"></div>
 
-        var points = []; // Array to store points clicked on the map
-        var markers = []; // Array to store marker objects
+<script>
+// Initialize the map
+const map = L.map('map').setView([48.118477, 11.539421], 14); // Default center, zoom level
 
-        // Function to add points when clicking on the map
-        function onMapClick(e) {
-            if (points.length < 4) { // Limit the number of points to 4
-                // Add the point to the array (latitude, longitude)
-                points.push([e.latlng.lat, e.latlng.lng]);
-                
-                // Add marker to the map
-                var marker = L.marker(e.latlng).addTo(map);
-                markers.push(marker);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
 
-                // If there are two or more points, enable route calculation
-                if (points.length >= 2) {
-                    getRoute();
+// Initialize arrays to hold markers and route points
+let markers = [];
+let points = [];
+
+// Function to handle click event on the map to get points
+map.on('click', function (e) {
+    if (points.length < 8) { // Limit the number of points to 4
+        points.push([e.latlng.lat, e.latlng.lng]); // Add clicked point to points array
+        L.marker([e.latlng.lat, e.latlng.lng]).addTo(map); // Add a marker at the clicked location
+
+        // If there are two or more points, trigger route calculation
+        if (points.length >= 2) {
+            getRoute(); // Call function to fetch route
+        }
+    } else {
+        alert("You can only select up to 8 points.");
+    }
+});
+
+// Function to fetch route from GraphHopper
+async function getRoute() {
+    const url = 'https://graphhopper.com/api/1/route?key=YOUR_GRAPHHOPPER_API_KEY'; // Replace with your GraphHopper API key
+    const params = {
+        point: points.map(p => `${p[0]},${p[1]}`).join('&point='), // Format the points in 'lat,lon'
+        vehicle: 'car',
+        type: 'json'
+    };
+
+    try {
+        const response = await axios.get(url, { params });
+        displayRoutes(response.data); // Pass the response data to the display function
+    } catch (error) {
+        console.error('Error fetching route:', error);
+    }
+}
+
+// Function to display routes and information on the map
+function displayRoutes(data) {
+    const routeInfoDiv = document.getElementById('route-info');
+    routeInfoDiv.innerHTML = ''; // Clear any previous route info
+
+    if (data.paths && data.paths.length > 0) {
+        data.paths.forEach((path, index) => {
+            const coordinates = path.points.coordinates;
+            if (coordinates) {
+                const latlngs = coordinates.map(c => [c[1], c[0]]); // Convert from [lon, lat] to [lat, lon]
+
+                // Display the route on the map
+                L.polyline(latlngs, { color: 'blue' }).addTo(map);
+
+                // Add route information (distance and time)
+                const distanceInKm = (path.distance / 1000).toFixed(2); // Convert meters to kilometers
+                const timeInMinutes = Math.round(path.time / 60000); // Convert milliseconds to minutes
+                routeInfoDiv.innerHTML += `<strong>Route ${index + 1}</strong><br>
+                                           Distance: ${distanceInKm} km<br>
+                                           Time: ${timeInMinutes} minutes<br><br>`;
+
+                // Display turn-by-turn instructions
+                if (path.instructions) {
+                    path.instructions.forEach(instruction => {
+                        routeInfoDiv.innerHTML += `<p>${instruction.text}</p>`;
+                    });
                 }
-            } else {
-                alert("You can only select up to 4 points.");
             }
-        }
+        });
+    } else {
+        routeInfoDiv.innerHTML = '<p>No routes found.</p>';
+    }
+}
+</script>
 
-        // Add the click event to the map
-        map.on('click', onMapClick);
-
-        // Function to fetch the route from GraphHopper API
-        function getRoute() {
-            var url = "https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e"; // GraphHopper API URL
-
-            // Prepare the points array for the JSON format (GraphHopper requires [longitude, latitude])
-            var pointsParam = points.map(function(point) {
-                return [point[1], point[0]]; // Reverse lat/lng order for GraphHopper API (longitude, latitude)
-            });
-
-            // Construct the body payload for the API request
-            var requestBody = {
-                points: pointsParam,
-                profile: "car",
-                instructions: true
-            };
-
-            // Make the API request
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log(data);
-                if (data.paths && data.paths.length > 0) {
-                    displayRoute(data.paths);
-                } else {
-                    alert("No route found.");
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching route:', error);
-            });
-        }
-
-        // Function to display the route on the map
-        function displayRoute(paths) {
-            var routeInfo = document.getElementById('route-info');
-            routeInfo.innerHTML = ''; // Clear the route info
-
-            paths.forEach((path, index) => {
-                // Create a polyline for each route
-                var routeCoordinates = path.points.coordinates.map(function(coord) {
-                    return [coord[1], coord[0]]; // Reverse back to lat/lng for Leaflet
-                });
-
-                // Add polyline to the map
-                var routePolyline = L.polyline(routeCoordinates, { color: 'blue' }).addTo(map);
-
-                // Display route info (length and time)
-                var distanceKm = (path.distance / 1000).toFixed(2); // Convert meters to kilometers
-                var timeMin = (path.time / 60000).toFixed(2); // Convert milliseconds to minutes
-
-                var routeDetails = `
-                    <h3>Route ${index + 1}</h3>
-                    <p><strong>Distance:</strong> ${distanceKm} km</p>
-                    <p><strong>Time:</strong> ${timeMin} minutes</p>
-                    <p><strong>Instructions:</strong> ${path.instructions.join('<br/>')}</p>
-                `;
-                routeInfo.innerHTML += routeDetails;
-            });
-
-            // Adjust map bounds to fit the route
-            var bounds = L.latLngBounds(paths[0].points.coordinates.map(function(coord) {
-                return [coord[1], coord[0]]; // Reverse back to lat/lng for Leaflet
-            }));
-            map.fitBounds(bounds);
-        }
-    </script>
 </body>
 </html>
