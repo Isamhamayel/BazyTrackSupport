@@ -1,36 +1,56 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GraphHopper in Traccar</title>
+    <title>GraphHopper Routing in Traccar</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
 </head>
 <body>
-    <div id="map" style="width: 100%; height: 500px;"></div>
-    
+    <div id="map" style="width: 100%; height: 600px;"></div>
+    <p id="route-info"></p>
+
     <script>
-        var map = L.map('map').setView([31.963158, 35.930359], 10); // Default center (Amman, Jordan)
+        var map = L.map('map').setView([31.963158, 35.930359], 10); // Default to Amman, Jordan
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // GraphHopper Routing API
-        var routingControl = L.Routing.control({
-            waypoints: [
-                L.latLng(31.963158, 35.930359), // Start (Amman)
-                L.latLng(32.0853, 36.1025) // Destination
-            ],
-            router: new L.Routing.graphHopper('YOUR_API_KEY', {
-                urlParameters: {
-                    vehicle: 'car'
-                }
-            }),
-            lineOptions: {
-                styles: [{ color: 'blue', opacity: 0.7, weight: 5 }]
-            }
-        }).addTo(map);
+        var apiKey = "e18fd573-f742-4069-8f82-5642fae3450e"; // Replace with your GraphHopper API Key
+        var start = [31.963158, 35.930359]; // Amman
+        var end = [32.0853, 36.1025]; // Destination
+
+        function fetchRoutes() {
+            var url = `https://graphhopper.com/api/1/route?point=${start[0]},${start[1]}&point=${end[0]},${end[1]}&profile=car&locale=en&alternative_route.max_paths=3&key=${apiKey}`;
+
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    let routes = data.paths;
+                    let bestTime = routes[0].time / 1000; // Convert to seconds
+                    let info = `Best Route: ${Math.round(bestTime / 60)} min<br>`;
+
+                    routes.forEach((route, index) => {
+                        let routeTime = route.time / 1000;
+                        let timeDiff = Math.round((routeTime - bestTime) / 60);
+                        let color = index === 0 ? "blue" : "red"; // Best route in blue, others in red
+
+                        L.geoJSON(route.points, {
+                            style: { color: color, weight: 4, opacity: 0.7 }
+                        }).addTo(map);
+
+                        if (index > 0) {
+                            info += `Alternative Route ${index}: ${Math.round(routeTime / 60)} min (⏳ +${timeDiff} min)<br>`;
+                        }
+                    });
+
+                    document.getElementById("route-info").innerHTML = info;
+                })
+                .catch(error => console.error("Error fetching routes:", error));
+        }
+
+        fetchRoutes();
     </script>
 </body>
 </html>
