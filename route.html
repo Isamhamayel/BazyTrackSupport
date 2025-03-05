@@ -40,13 +40,19 @@
                 map.removeLayer(routeLayer);
             }
 
+            // Debugging: Check if points are being passed correctly
+            console.log("Selected points: ", points);
+
             // Fetch the route from GraphHopper
-            var apiKey = "e18fd573-f742-4069-8f82-5642fae3450e"; // Replace with your GraphHopper API Key
+            var apiKey = "e18fd573-f742-4069-8f82-5642fae3450e"; // Your GraphHopper API Key
             var pointsString = points.map(function(point) {
                 return point[0] + "," + point[1];
             }).join("&point=");
 
             var url = `https://graphhopper.com/api/1/route?point=${pointsString}&profile=car&locale=en&key=${apiKey}`;
+
+            // Debugging: Check the generated URL
+            console.log("Route URL: ", url);
 
             fetch(url)
                 .then(response => response.json())
