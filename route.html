@@ -3,167 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Display</title>
+    <title>Route Optimization</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <style>
-        #map { height: 500px; }
+        #map { height: 500px; width: 100%; }
         #controls { margin-top: 10px; }
-        #route-info { margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
+
 <div id="controls">
     <button onclick="getRoute()">Get Best Route</button>
     <button onclick="clearMap()">Clear</button>
-    <select id="route-select" onchange="changeRoute()"></select>
 </div>
+
 <div id="route-info"></div>
 
 <script>
-const map = L.map('map').setView([31.95013, 35.92487], 14);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+    // ✅ Initialize Map
+    const map = L.map('map').setView([31.95013, 35.92487], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-let markers = [];
-let points = [];
-let polylines = [];
-let originalOrder = [];
-let optimizedRoute = [];
+    let markers = [];
+    let points = [];
+    let polylines = [];
 
-map.on('click', function (e) {
-    if (points.length < 8) { 
-        points.push([e.latlng.lat, e.latlng.lng]); 
-        let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
-            .bindPopup(`Point ${points.length}`).openPopup();
-        markers.push(marker);
-        originalOrder.push([e.latlng.lat, e.latlng.lng]);
-    } else {
-        alert("You can only select up to 8 points.");
-    }
-});
-
-async function getRoute() {
-    if (points.length < 2) {
-        alert("Please select at least two points.");
-        return;
-    }
-
-    const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your key
-    const data = {
-        points: points,  
-        "snap_preventions": [
-        "motorway",
-        "ferry",
-        "tunnel"
-    ],
-    "details": [
-        "road_class",
-        "surface"
-    ],
-    "profile": "car",
-    "locale": "en",
-    "instructions": true,
-    "calc_points": true,
-    "points_encoded": false        algorithm: 'optimized'  
-    };
-
-    try {
-        const response = await axios.post(url, data, {
-            headers: { 'Content-Type': 'application/json' }
-        });
-        displayRoutes(response.data);
-    } catch (error) {
-        console.error('Error fetching route:', error.response ? error.response.data : error);
-    }
-}
-
-function displayRoutes(data) {
-    document.getElementById('route-info').innerHTML = "";
-    document.getElementById('route-select').innerHTML = "";
-
-    polylines.forEach(polyline => map.removeLayer(polyline));
-    polylines = [];
-    optimizedRoute = [];
-
-    if (data.paths && data.paths.length > 0) {
-        let bestRoute = data.paths[0];
-        optimizedRoute = bestRoute.points.coordinates.map(c => [c[1], c[0]]);
-        
-        let polyline = L.polyline(optimizedRoute, { color: 'blue' }).addTo(map);
-        polylines.push(polyline);
-
-        let distanceInKm = (bestRoute.distance / 1000).toFixed(2);
-        let timeInMinutes = Math.round(bestRoute.time / 60000);
-        document.getElementById('route-info').innerHTML = `
-            <strong>Optimized Route</strong><br>
-            Distance: ${distanceInKm} km<br>
-            Time: ${timeInMinutes} minutes<br><br>
-        `;
-
-        let originalDistance = calculateDirectDistance();
-        let savedDistance = (originalDistance - bestRoute.distance / 1000).toFixed(2);
-        let savedTime = calculateTimeSaved(originalDistance, bestRoute.distance / 1000);
-
-        document.getElementById('route-info').innerHTML += `
-            <strong>Estimated Savings</strong><br>
-            Distance saved: ${savedDistance} km<br>
-            Time saved: ${savedTime} minutes<br>
-        `;
-
-        updateMarkerOrder();
-    } else {
-        document.getElementById('route-info').innerHTML = "<p>No routes found.</p>";
-    }
-}
-
-function updateMarkerOrder() {
-    markers.forEach((marker, index) => {
-        marker.bindPopup(`Optimized: ${index + 1}`).openPopup();
+    // ✅ Add Click Event to Capture Points
+    map.on('click', function (e) {
+        if (points.length < 8) { 
+            points.push([e.latlng.lat, e.latlng.lng]);
+            let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
+                .bindPopup(`Point ${points.length}`).openPopup();
+            markers.push(marker);
+        } else {
+            alert("You can only select up to 8 points.");
+        }
     });
-}
 
-function clearMap() {
-    markers.forEach(marker => map.removeLayer(marker));
-    polylines.forEach(polyline => map.removeLayer(polyline));
+    async function getRoute() {
+        if (points.length < 2) {
+            alert("Please select at least two points.");
+            return;
+        }
 
-    markers = [];
-    points = [];
-    originalOrder = [];
-    optimizedRoute = [];
-    
-    document.getElementById('route-info').innerHTML = "";
-    document.getElementById('route-select').innerHTML = "";
-}
+        const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your GraphHopper API Key
+        const data = {
+            points: points,
+            vehicle: 'car',
+            type: 'json',
+            locale: 'en',
+            optimize: true  
+        };
 
-function calculateDirectDistance() {
-    let totalDistance = 0;
-    for (let i = 0; i < originalOrder.length - 1; i++) {
-        totalDistance += getDistance(originalOrder[i], originalOrder[i + 1]);
+        try {
+            const response = await axios.post(url, data, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+            displayRoute(response.data);
+        } catch (error) {
+            console.error('Error fetching route:', error.response ? error.response.data : error);
+        }
     }
-    return totalDistance;
-}
 
-function calculateTimeSaved(originalDistance, optimizedDistance) {
-    let originalTime = originalDistance * 2; 
-    let optimizedTime = optimizedDistance * 2;  
-    return Math.round(originalTime - optimizedTime);
-}
+    function displayRoute(data) {
+        polylines.forEach(polyline => map.removeLayer(polyline));
+        polylines = [];
 
-function getDistance(point1, point2) {
-    const R = 6371;
-    const dLat = (point2[0] - point1[0]) * Math.PI / 180;
-    const dLon = (point2[1] - point1[1]) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(point1[0] * Math.PI / 180) * Math.cos(point2[0] * Math.PI / 180) * 
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-}
+        if (data.paths && data.paths.length > 0) {
+            let bestRoute = data.paths[0];
+            let optimizedRoute = bestRoute.points.coordinates.map(c => [c[1], c[0]]);
+            
+            let polyline = L.polyline(optimizedRoute, { color: 'blue' }).addTo(map);
+            polylines.push(polyline);
+
+            document.getElementById('route-info').innerHTML = `
+                <strong>Optimized Route</strong><br>
+                Distance: ${(bestRoute.distance / 1000).toFixed(2)} km<br>
+                Time: ${Math.round(bestRoute.time / 60000)} minutes<br>
+            `;
+        } else {
+            document.getElementById('route-info').innerHTML = "<p>No route found.</p>";
+        }
+    }
+
+    function clearMap() {
+        markers.forEach(marker => map.removeLayer(marker));
+        polylines.forEach(polyline => map.removeLayer(polyline));
+
+        markers = [];
+        points = [];
+        polylines = [];
+
+        document.getElementById('route-info').innerHTML = "";
+    }
 </script>
 
 </body>
