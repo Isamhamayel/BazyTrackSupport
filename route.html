@@ -100,7 +100,7 @@
     function highlightRoute(index, route) {
         clearPolylines();
         let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
-        let polyline = L.polyline(optimizedRoute, { color: 'blue', weight: 5 }).addTo(map);
+        let polyline = L.polyline(optimizedRoute, { color: 'green', weight: 5 }).addTo(map);
         polylines.push(polyline);
 
         document.getElementById('route-info').innerHTML = `
