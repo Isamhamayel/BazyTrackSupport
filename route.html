@@ -3,26 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Optimized Route Display</title>
+    <title>Route Display</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <style>
         #map { height: 500px; }
         #controls { margin-top: 10px; }
+        #route-info { margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="controls">
-    <label for="route-select">Select Route:</label>
+    <button onclick="getRoute()">Get Best Route</button>
+    <button onclick="clearMap()">Clear</button>
     <select id="route-select" onchange="changeRoute()"></select>
-    <div id="route-info"></div>
 </div>
+<div id="route-info"></div>
 
 <script>
-// Initialize the map
 const map = L.map('map').setView([31.95013, 35.92487], 14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -31,112 +32,137 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let markers = [];
 let points = [];
 let polylines = [];
-let allRoutes = [];
+let originalOrder = [];
+let optimizedRoute = [];
 
-// Function to add marker with order number
-function addMarker(lat, lng, index) {
-    const marker = L.marker([lat, lng]).addTo(map).bindTooltip(`${index + 1}`, { permanent: true });
-    markers.push(marker);
-}
-
-// Handle map clicks to select points
 map.on('click', function (e) {
-    if (points.length < 8) {
-        points.push([e.latlng.lng, e.latlng.lat]);
-        addMarker(e.latlng.lat, e.latlng.lng, points.length - 1);
-        if (points.length >= 2) {
-            getBestRoute();
-        }
+    if (points.length < 8) { 
+        points.push([e.latlng.lat, e.latlng.lng]); 
+        let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
+            .bindPopup(`Point ${points.length}`).openPopup();
+        markers.push(marker);
+        originalOrder.push([e.latlng.lat, e.latlng.lng]);
     } else {
         alert("You can only select up to 8 points.");
     }
 });
 
-// Fetch the best route using GraphHopper
-async function getBestRoute() {
-    const apiKey = 'e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your key
-    const url = `https://graphhopper.com/api/1/route?key=${apiKey}`;
+async function getRoute() {
+    if (points.length < 2) {
+        alert("Please select at least two points.");
+        return;
+    }
 
+    const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your key
     const data = {
-        points: points,
-        vehicle: 'car',
-        type: 'json',
-        locale: 'en',
-        optimize: true, // Request optimal route
-        algorithm: "round_trip"
+        points: points,  
+        "snap_preventions": [
+        "motorway",
+        "ferry",
+        "tunnel"
+    ],
+    "details": [
+        "road_class",
+        "surface"
+    ],
+    "profile": "car",
+    "locale": "en",
+    "instructions": true,
+    "calc_points": true,
+    "points_encoded": false        algorithm: 'optimized'  
     };
 
     try {
-        const response = await axios.post(url, data, { headers: { 'Content-Type': 'application/json' } });
-        allRoutes = response.data.paths; // Store routes
-        updateRouteSelection(); // Update dropdown
-        displayRoute(0); // Show best route initially
+        const response = await axios.post(url, data, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+        displayRoutes(response.data);
     } catch (error) {
-        console.error('Error fetching route:', error);
+        console.error('Error fetching route:', error.response ? error.response.data : error);
     }
 }
 
-// Update route selection dropdown
-function updateRouteSelection() {
-    const routeSelect = document.getElementById('route-select');
-    routeSelect.innerHTML = '';
-    allRoutes.forEach((_, index) => {
-        const option = document.createElement('option');
-        option.value = index;
-        option.textContent = `Route ${index + 1}`;
-        routeSelect.appendChild(option);
-    });
-}
+function displayRoutes(data) {
+    document.getElementById('route-info').innerHTML = "";
+    document.getElementById('route-select').innerHTML = "";
 
-// Display selected route on the map
-function displayRoute(index) {
-    clearPolylines();
-    const route = allRoutes[index];
-    const coordinates = route.points.coordinates.map(c => [c[1], c[0]]); // Convert [lon, lat] -> [lat, lon]
-    
-    const polyline = L.polyline(coordinates, { color: 'blue' }).addTo(map);
-    polylines.push(polyline);
-
-    updateMarkers(route.snapped_waypoints.coordinates);
-    displayRouteInfo(route);
-}
-
-// Update markers with optimized order
-function updateMarkers(optimizedPoints) {
-    markers.forEach(marker => map.removeLayer(marker));
-    markers = [];
-
-    optimizedPoints.forEach((point, index) => {
-        addMarker(point[1], point[0], index);
-    });
-}
-
-// Display route info and savings
-function displayRouteInfo(route) {
-    const distanceKm = (route.distance / 1000).toFixed(2);
-    const timeMin = Math.round(route.time / 60000);
-    const fuelSaved = (distanceKm * 0.1).toFixed(2); // Example: Assume 10% fuel saving
-    const timeSaved = Math.round(timeMin * 0.15); // Example: Assume 15% time saving
-
-    document.getElementById('route-info').innerHTML = `
-        <strong>Optimized Route:</strong><br>
-        Distance: ${distanceKm} km<br>
-        Time: ${timeMin} min<br>
-        Fuel Saved: ${fuelSaved} L<br>
-        Time Saved: ${timeSaved} min
-    `;
-}
-
-// Handle route selection change
-function changeRoute() {
-    const selectedIndex = document.getElementById('route-select').value;
-    displayRoute(parseInt(selectedIndex));
-}
-
-// Clear previous polylines
-function clearPolylines() {
     polylines.forEach(polyline => map.removeLayer(polyline));
     polylines = [];
+    optimizedRoute = [];
+
+    if (data.paths && data.paths.length > 0) {
+        let bestRoute = data.paths[0];
+        optimizedRoute = bestRoute.points.coordinates.map(c => [c[1], c[0]]);
+        
+        let polyline = L.polyline(optimizedRoute, { color: 'blue' }).addTo(map);
+        polylines.push(polyline);
+
+        let distanceInKm = (bestRoute.distance / 1000).toFixed(2);
+        let timeInMinutes = Math.round(bestRoute.time / 60000);
+        document.getElementById('route-info').innerHTML = `
+            <strong>Optimized Route</strong><br>
+            Distance: ${distanceInKm} km<br>
+            Time: ${timeInMinutes} minutes<br><br>
+        `;
+
+        let originalDistance = calculateDirectDistance();
+        let savedDistance = (originalDistance - bestRoute.distance / 1000).toFixed(2);
+        let savedTime = calculateTimeSaved(originalDistance, bestRoute.distance / 1000);
+
+        document.getElementById('route-info').innerHTML += `
+            <strong>Estimated Savings</strong><br>
+            Distance saved: ${savedDistance} km<br>
+            Time saved: ${savedTime} minutes<br>
+        `;
+
+        updateMarkerOrder();
+    } else {
+        document.getElementById('route-info').innerHTML = "<p>No routes found.</p>";
+    }
+}
+
+function updateMarkerOrder() {
+    markers.forEach((marker, index) => {
+        marker.bindPopup(`Optimized: ${index + 1}`).openPopup();
+    });
+}
+
+function clearMap() {
+    markers.forEach(marker => map.removeLayer(marker));
+    polylines.forEach(polyline => map.removeLayer(polyline));
+
+    markers = [];
+    points = [];
+    originalOrder = [];
+    optimizedRoute = [];
+    
+    document.getElementById('route-info').innerHTML = "";
+    document.getElementById('route-select').innerHTML = "";
+}
+
+function calculateDirectDistance() {
+    let totalDistance = 0;
+    for (let i = 0; i < originalOrder.length - 1; i++) {
+        totalDistance += getDistance(originalOrder[i], originalOrder[i + 1]);
+    }
+    return totalDistance;
+}
+
+function calculateTimeSaved(originalDistance, optimizedDistance) {
+    let originalTime = originalDistance * 2; 
+    let optimizedTime = optimizedDistance * 2;  
+    return Math.round(originalTime - optimizedTime);
+}
+
+function getDistance(point1, point2) {
+    const R = 6371;
+    const dLat = (point2[0] - point1[0]) * Math.PI / 180;
+    const dLon = (point2[1] - point1[1]) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(point1[0] * Math.PI / 180) * Math.cos(point2[0] * Math.PI / 180) * 
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
 }
 </script>
 
