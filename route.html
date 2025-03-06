@@ -15,16 +15,15 @@
 <body>
 
 <div id="map"></div>
-
 <div id="controls">
     <button onclick="getRoute()">Get Best Route</button>
     <button onclick="clearMap()">Clear</button>
 </div>
-
+<div id="route-options"></div>
 <div id="route-info"></div>
 
 <script>
-    // ✅ Initialize Map
+    const API_KEY = 'e18fd573-f742-4069-8f82-5642fae3450e';
     const map = L.map('map').setView([31.95013, 35.92487], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -34,12 +33,12 @@
     let points = [];
     let polylines = [];
 
-    // ✅ Add Click Event to Capture Points
     map.on('click', function (e) {
         if (points.length < 8) { 
-            points.push([e.latlng.lng,e.latlng.lat]);
+            let pointNumber = points.length + 1;
+            points.push([e.latlng.lng, e.latlng.lat]);
             let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
-                .bindPopup(`Point ${points.length}`).openPopup();
+                .bindTooltip(`Point ${pointNumber}`, { permanent: true, direction: 'top' }).openTooltip();
             markers.push(marker);
         } else {
             alert("You can only select up to 8 points.");
@@ -51,60 +50,78 @@
             alert("Please select at least two points.");
             return;
         }
+        
+        if (API_KEY === 'REPLACE_WITH_YOUR_GRAPHOPPER_API_KEY') {
+            alert("Please replace the placeholder API key with a valid GraphHopper API key.");
+            return;
+        }
 
-        const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your GraphHopper API Key
+        const url = `https://graphhopper.com/api/1/route?key=${API_KEY}`;
         const data = {
             points: points,
-            snap_preventions: ["motorway", "ferry", "tunnel"],
-                details: ["road_class", "surface"],
-                profile: "car",
-                locale: "en",
-                instructions: true,
-                calc_points: true,
-                points_encoded: false,
-            optimize: true  
+            profile: "car",
+            locale: "en",
+            instructions: true,
+            calc_points: true,
+            points_encoded: false,
+            optimize: true
         };
 
         try {
             const response = await axios.post(url, data, {
                 headers: { 'Content-Type': 'application/json' }
             });
-            displayRoute(response.data);
+            console.log("API Response:", response.data); // Debugging output
+            displayRoutes(response.data.paths);
         } catch (error) {
             console.error('Error fetching route:', error.response ? error.response.data : error);
+            alert("Failed to fetch route. Check API key and internet connection.");
         }
     }
 
-    function displayRoute(data) {
-        polylines.forEach(polyline => map.removeLayer(polyline));
-        polylines = [];
+    function displayRoutes(routes) {
+        clearPolylines();
+        
+        document.getElementById('route-options').innerHTML = "<strong>Select a Route:</strong><br>";
 
-        if (data.paths && data.paths.length > 0) {
-            let bestRoute = data.paths[0];
-            let optimizedRoute = bestRoute.points.coordinates.map(c => [c[1], c[0]]);
-            
-            let polyline = L.polyline(optimizedRoute, { color: 'blue' }).addTo(map);
+        routes.forEach((route, index) => {
+            let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
+            let polyline = L.polyline(optimizedRoute, { color: index === 0 ? 'blue' : 'gray' }).addTo(map);
             polylines.push(polyline);
 
-            document.getElementById('route-info').innerHTML = `
-                <strong>Optimized Route</strong><br>
-                Distance: ${(bestRoute.distance / 1000).toFixed(2)} km<br>
-                Time: ${Math.round(bestRoute.time / 60000)} minutes<br>
-            `;
-        } else {
-            document.getElementById('route-info').innerHTML = "<p>No route found.</p>";
-        }
+            let option = document.createElement("button");
+            option.innerHTML = `Route ${index + 1}: ${(route.distance / 1000).toFixed(2)} km, ${Math.round(route.time / 60000)} min`;
+            option.onclick = () => highlightRoute(index, route);
+            document.getElementById('route-options').appendChild(option);
+            document.getElementById('route-options').appendChild(document.createElement("br"));
+        });
+    }
+
+    function highlightRoute(index, route) {
+        clearPolylines();
+        let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
+        let polyline = L.polyline(optimizedRoute, { color: 'blue', weight: 5 }).addTo(map);
+        polylines.push(polyline);
+
+        document.getElementById('route-info').innerHTML = `
+            <strong>Selected Route</strong><br>
+            Distance: ${(route.distance / 1000).toFixed(2)} km<br>
+            Time: ${Math.round(route.time / 60000)} minutes<br>
+        `;
     }
 
     function clearMap() {
         markers.forEach(marker => map.removeLayer(marker));
-        polylines.forEach(polyline => map.removeLayer(polyline));
-
+        clearPolylines();
         markers = [];
         points = [];
-        polylines = [];
-
+        document.getElementById('route-options').innerHTML = "";
         document.getElementById('route-info').innerHTML = "";
+    }
+
+    function clearPolylines() {
+        polylines.forEach(polyline => map.removeLayer(polyline));
+        polylines = [];
     }
 </script>
 
