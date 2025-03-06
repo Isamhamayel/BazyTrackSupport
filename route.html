@@ -37,7 +37,7 @@
     // ✅ Add Click Event to Capture Points
     map.on('click', function (e) {
         if (points.length < 8) { 
-            points.push([e.latlng.lat, e.latlng.lng]);
+            points.push([e.latlng.lng,e.latlng.lat]);
             let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
                 .bindPopup(`Point ${points.length}`).openPopup();
             markers.push(marker);
