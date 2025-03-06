@@ -55,20 +55,13 @@
         const url = 'https://graphhopper.com/api/1/route?key=e18fd573-f742-4069-8f82-5642fae3450e'; // Replace with your GraphHopper API Key
         const data = {
             points: points,
-            "snap_preventions": [
-        "motorway",
-        "ferry",
-        "tunnel"
-    ],
-    "details": [
-        "road_class",
-        "surface"
-    ],
-    "profile": "car",
-    "locale": "en",
-    "instructions": true,
-    "calc_points": true,
-    "points_encoded": false
+            snap_preventions: ["motorway", "ferry", "tunnel"],
+                details: ["road_class", "surface"],
+                profile: "car",
+                locale: "en",
+                instructions: true,
+                calc_points: true,
+                points_encoded: false,
             optimize: true  
         };
 
