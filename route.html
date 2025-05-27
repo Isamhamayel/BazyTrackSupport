@@ -58,16 +58,19 @@
 
         const url = `https://graphhopper.com/api/1/route?key=${API_KEY}`;
         const data = {
-            points: points,
-            profile: "car",
-            locale: "en",
-            instructions: true,
-            calc_points: true,
-            points_encoded: false,
-            optimize: false,
-            "algorithm":"alternative_route",
-            "alternative_route.max_paths": 3
-        };
+    points: points,
+    profile: "car",
+    locale: "en",
+    instructions: true,
+    calc_points: true,
+    points_encoded: false,
+    optimize: false,
+    algorithm: "alternative_route",
+    "alternative_route.max_paths": 3,
+    "alternative_route.max_weight_factor": 1.4,
+    "alternative_route.max_share_factor": 0.6
+};
+
 
         try {
             const response = await axios.post(url, data, {
