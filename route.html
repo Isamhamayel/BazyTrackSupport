@@ -74,6 +74,7 @@
             const response = await axios.post(url, data, {
                 headers: { 'Content-Type': 'application/json' }
             });
+            console.log("Data - Body:",data);
             console.log("API Response:", response.data); // Debugging output
             displayRoutes(response.data.paths);
         } catch (error) {
