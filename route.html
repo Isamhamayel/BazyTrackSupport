@@ -95,13 +95,54 @@
             let polyline = L.polyline(optimizedRoute, { color: index === 0 ? 'blue' : 'gray' }).addTo(map);
             polylines.push(polyline);
 
-            let option = document.createElement("button");
-            option.innerHTML = `Route ${index + 1}: ${(route.distance / 1000).toFixed(2)} km, ${Math.round(route.time / 60000)} min`;
-            option.onclick = () => highlightRoute(index, route);
-            document.getElementById('route-options').appendChild(option);
+            let routeBtn = document.createElement("button");
+            routeBtn.innerHTML = `Route ${index + 1}: ${(route.distance / 1000).toFixed(2)} km, ${Math.round(route.time / 60000)} min`;
+            routeBtn.onclick = () => highlightRoute(index, route);
+            
+            let geofenceBtn = document.createElement("button");
+            geofenceBtn.innerHTML = "➕ Add as Geofence";
+            geofenceBtn.style.marginLeft = "10px";
+            geofenceBtn.onclick = () => createGeofenceFromRoute(route);
+            
+            document.getElementById('route-options').appendChild(routeBtn);
+            document.getElementById('route-options').appendChild(geofenceBtn);
             document.getElementById('route-options').appendChild(document.createElement("br"));
-        });
+                    });
     }
+
+    async function createGeofenceFromRoute(route) {
+    const coords = route.points.coordinates;
+    if (!coords || coords.length < 2) {
+        alert("Route is invalid or too short.");
+        return;
+    }
+
+    const linestring = "LINESTRING (" +
+        coords.map(c => `${c[0]} ${c[1]}`).join(", ") +
+        ")";
+
+    const geofencePayload = {
+        name: `Route Geofence ${new Date().toISOString()}`,
+        description: "Created from optimized route",
+        area: linestring,
+        calendarId: 0,
+        attributes: {}
+    };
+
+    try {
+        const response = await axios.post('/api/geofences', geofencePayload, {
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        alert("Geofence created successfully!");
+        console.log("Geofence Response:", response.data);
+    } catch (error) {
+        console.error("Failed to create geofence:", error.response || error);
+        alert("Error creating geofence. Check console.");
+    }
+}
+
 
     function highlightRoute(index, route) {
         clearPolylines();
