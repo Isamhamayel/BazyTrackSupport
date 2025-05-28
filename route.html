@@ -32,7 +32,7 @@
     let markers = [];
     let points = [];
     let polylines = [];
-
+    let selectedRoute = null;
     map.on('click', function (e) {
         if (points.length < 8) { 
             let pointNumber = points.length + 1;
@@ -85,8 +85,8 @@
         }
     }
 
-     async function createGeofenceFromRoute(optimizedRouteCoords) {
-            if (!optimizedRouteCoords.length) {
+     async function createGeofenceFromRoute() {
+            if (!selectedRoute.length) {
                 alert("Please generate the route first.");
                 return;
             }
@@ -95,7 +95,11 @@
             if (!name) return;
 
             // Construct LINESTRING (lng lat, lng lat, ...)
-            const linestring = "LINESTRING(" + optimizedRouteCoords.map(p => `${p.lng} ${p.lat}`).join(", ") + ")";
+            const coords = selectedRoute.points.coordinates.map(c => ({
+                lat: c[1],
+                lng: c[0]
+            }));
+            const linestring = "LINESTRING(" + coords.map(p => `${p.lng} ${p.lat}`).join(", ") + ")";
             const attributes = JSON.stringify({ type: "route" });
 
             const body = JSON.stringify({
@@ -151,6 +155,7 @@
     }
     function highlightRoute(index, route) {
         clearPolylines();
+        selectedRoute = route;
         let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
         let polyline = L.polyline(optimizedRoute, { color: 'green', weight: 5 }).addTo(map);
         polylines.push(polyline);
