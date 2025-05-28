@@ -123,7 +123,6 @@
 
     const geofencePayload = {
         name: `Route Geofence ${new Date().toISOString()}`,
-        description: "Created from optimized route",
         area: linestring,
         calendarId: 0,
         attributes: {}
@@ -131,9 +130,13 @@
 
     try {
         const response = await axios.post('https://go.bazytrack.jo/api/geofences', geofencePayload, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
+           method: "POST",
+           headers: {
+                  "Content-Type": "application/json",
+                  "Accept": "application/json",
+                  "Authorization", "Bearer SDBGAiEAj4tqY31pz8DlbCtSb5SDoKjVj_6dzTndHSkhdKtZi3cCIQDtlIgvEDAGF6fLCCAZc7obToeaJ-HwcKK17wJ7a25d43sidSI6MSwiZSI6IjIwMjYtMDYtMDNUMjE6MDA6MDAuMDAwKzAwOjAwIn0"
+           },
+           body: body
         });
         alert("Geofence created successfully!");
         console.log("Geofence Response:", response.data);
