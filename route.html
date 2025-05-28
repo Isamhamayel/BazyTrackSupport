@@ -130,7 +130,7 @@
     };
 
     try {
-        const response = await axios.post('/api/geofences', geofencePayload, {
+        const response = await axios.post('https://go.bazytrack.jo/api/geofences', geofencePayload, {
             headers: {
                 'Content-Type': 'application/json'
             }
