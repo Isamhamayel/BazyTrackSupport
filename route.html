@@ -86,10 +86,10 @@
     }
 
      async function createGeofenceFromRoute() {
-            if (!selectedRoute.length) {
-                alert("Please generate the route first.");
-                return;
-            }
+             if (!selectedRoute || !selectedRoute.points || !selectedRoute.points.coordinates) {
+                        alert("Please select a route first.");
+                        return;
+             }
 
             const name = prompt("Enter Geofence Name:");
             if (!name) return;
