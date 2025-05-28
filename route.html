@@ -121,16 +121,17 @@
                 alert("Failed to create geofence.");
             }
     }
+      
     function displayRoutes(routes) {
         clearPolylines();
         
         document.getElementById('route-options').innerHTML = "<strong>Select a Route:</strong><br>";
-
+    
         routes.forEach((route, index) => {
             let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
             let polyline = L.polyline(optimizedRoute, { color: index === 0 ? 'blue' : 'gray' }).addTo(map);
             polylines.push(polyline);
-
+    
             let routeBtn = document.createElement("button");
             routeBtn.innerHTML = `Route ${index + 1}: ${(route.distance / 1000).toFixed(2)} km, ${Math.round(route.time / 60000)} min`;
             routeBtn.onclick = () => highlightRoute(index, route);
@@ -138,16 +139,16 @@
             let geofenceBtn = document.createElement("button");
             geofenceBtn.innerHTML = "➕ Add as Geofence";
             geofenceBtn.style.marginLeft = "10px";
-            geofenceBtn.onclick = () => createGeofenceFromRoute(route);
+            geofenceBtn.onclick = () => {
+                const optimizedRouteCoords = route.points.coordinates.map(c => [c[1], c[0]]);
+                createGeofenceFromRoute(optimizedRouteCoords);
+            };
             
             document.getElementById('route-options').appendChild(routeBtn);
             document.getElementById('route-options').appendChild(geofenceBtn);
             document.getElementById('route-options').appendChild(document.createElement("br"));
-                    });
+        });
     }
-
-   
-
     function highlightRoute(index, route) {
         clearPolylines();
         let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
