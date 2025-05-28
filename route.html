@@ -58,18 +58,18 @@
 
         const url = `https://graphhopper.com/api/1/route?key=${API_KEY}`;
         const data = {
-    points: points,
-    profile: "car",
-    locale: "en",
-    instructions: true,
-    calc_points: true,
-    points_encoded: false,
-     optimize: true,
-    "alternative_route.max_paths": 3,
-    "alternative_route.max_weight_factor": 1.4,
-    "alternative_route.max_share_factor": 0.6,
-    ch: { disable: true } // <-- Add this!
-};
+                points: points,
+                profile: "car",
+                locale: "en",
+                instructions: true,
+                calc_points: true,
+                points_encoded: false,
+                 optimize: true,
+                "alternative_route.max_paths": 3,
+                "alternative_route.max_weight_factor": 1.4,
+                "alternative_route.max_share_factor": 0.6,
+                ch: { disable: true } // <-- Add this!
+        };
 
 
         try {
@@ -135,8 +135,7 @@
                     headers: {
                         "Content-Type": "application/json",
                         "Accept": "application/json",
-                        "Authorization", "Bearer SDBGAiEAj4tqY31pz8DlbCtSb5SDoKjVj_6dzTndHSkhdKtZi3cCIQDtlIgvEDAGF6fLCCAZc7obToeaJ-HwcKK17wJ7a25d43sidSI6MSwiZSI6IjIwMjYtMDYtMDNUMjE6MDA6MDAuMDAwKzAwOjAwIn0"
-                   },
+                        "Authorization": "Bearer SDBGAiEAj4tqY31pz8DlbCtSb5SDoKjVj_6dzTndHSkhdKtZi3cCIQDtlIgvEDAGF6fLCCAZc7obToeaJ-HwcKK17wJ7a25d43sidSI6MSwiZSI6IjIwMjYtMDYtMDNUMjE6MDA6MDAuMDAwKzAwOjAwIn0"
                     },
                     body: body
                 });
