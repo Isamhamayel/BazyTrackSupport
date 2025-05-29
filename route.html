@@ -119,7 +119,12 @@
                     body: body
                 });
                 const result = await response.text();
-                alert("Response: " + result);
+                if (response.status === 200) {
+                    alert("Route created successfully. 👍");
+                } else {
+                    const result = await response.text();
+                    alert("🔴 Error: " + result);
+                }
             } catch (error) {
                 console.error("Error sending request:", error);
                 alert("Failed to create geofence.");
