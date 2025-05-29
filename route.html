@@ -119,6 +119,7 @@
                     body: body
                 });
                 const result = await response.text();
+                alter("Boday = "+body);
                 alert("Response: " + result);
             } catch (error) {
                 console.error("Error sending request:", error);
