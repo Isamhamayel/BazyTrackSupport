@@ -119,7 +119,6 @@
                     body: body
                 });
                 const result = await response.text();
-                alert("Body = " + JSON.stringify(body, null, 2));
                 alert("Response: " + result);
             } catch (error) {
                 console.error("Error sending request:", error);
