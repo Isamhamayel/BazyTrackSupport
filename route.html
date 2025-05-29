@@ -99,7 +99,7 @@
                 lat: c[1],
                 lng: c[0]
             }));
-            const linestring = "LINESTRING(" + coords.map(p => `${p.lat} ${p.lon}`).join(", ") + ")";
+            const linestring = "LINESTRING(" + coords.map(p => `${p.lat} ${p.lng}`).join(", ") + ")";
             const attributes = { type: "route" };
 
             const body = JSON.stringify({
