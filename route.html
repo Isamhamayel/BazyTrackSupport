@@ -100,7 +100,7 @@
                 lng: c[0]
             }));
             const linestring = "LINESTRING(" + coords.map(p => `${p.lng} ${p.lat}`).join(", ") + ")";
-            const attributes = JSON.stringify({ type: "route" });
+            const attributes = { type: "route" };
 
             const body = JSON.stringify({
                 name,
