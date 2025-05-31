@@ -1,220 +1,215 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Optimization</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <!-- Leaflet CSS and JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- Leaflet GeoSearch -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.0.0/dist/geosearch.css" />
-    <script src="https://unpkg.com/leaflet-geosearch@3.0.0/dist/bundle.min.js"></script>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
-    <style>
-        #map { height: 500px; width: 100%; }
-        #controls { margin-top: 10px; }
-    </style>
-    <style>
-      .leaflet-control.geosearch {
-        z-index: 1000; 
-      }
-    </style>
+  <meta charset="UTF-8">
+  <title>Route Optimization</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS and JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet GeoSearch -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.0.0/dist/geosearch.css" />
+  <script src="https://unpkg.com/leaflet-geosearch@3.0.0/dist/bundle.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
+
+  <style>
+    #map { height: 500px; width: 100%; }
+    #controls { margin-top: 10px; }
+    .leaflet-control.geosearch { z-index: 1000; }
+  </style>
 </head>
 <body>
 
 <div id="map"></div>
 <div id="controls">
-    <button onclick="getRoute()">Get Best Route</button>
-    <button onclick="clearMap()">Clear</button>
+  <button onclick="getRoute()">Get Best Route</button>
+  <button onclick="clearMap()">Clear</button>
 </div>
 <div id="route-options"></div>
 <div id="route-info"></div>
 
 <script>
-    const API_KEY = 'a3645687-316d-4561-9116-becbd1dfac3a';
-    const map = L.map('map').setView([31.95013, 35.92487], 14);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-    
-      // Set up provider (Nominatim)
-      const provider = new window.GeoSearch.OpenStreetMapProvider();
-    
-      // Add the search control with autocomplete
-      const searchControl = new window.GeoSearch.GeoSearchControl({
-        provider: provider,
-        style: 'bar',
-        showMarker: true,
-        autoClose: true,
-        retainZoomLevel: false,
-        animateZoom: true,
-        searchLabel: 'Search for a place',
-        keepResult: true,
-        position: 'topleft'
-      });
-    
-      map.addControl(searchControl);
+  const API_KEY = 'a3645687-316d-4561-9116-becbd1dfac3a';
+  const map = L.map('map').setView([31.95013, 35.92487], 14);
 
-    let markers = [];
-    let points = [];
-    let polylines = [];
-    let selectedRoute = null;
-    map.on('click', function (e) {
-        if (points.length < 8) { 
-            let pointNumber = points.length + 1;
-            points.push([e.latlng.lng, e.latlng.lat]);
-            let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
-                .bindTooltip(`Point ${pointNumber}`, { permanent: true, direction: 'top' }).openTooltip();
-            markers.push(marker);
-        } else {
-            alert("You can only select up to 8 points.");
-        }
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // ✅ Correct access to GeoSearch
+  const provider = new window.GeoSearch.OpenStreetMapProvider();
+
+  const searchControl = new window.GeoSearch.GeoSearchControl({
+    provider: provider,
+    style: 'bar',
+    showMarker: true,
+    autoClose: true,
+    retainZoomLevel: false,
+    animateZoom: true,
+    searchLabel: 'Search for a place',
+    keepResult: true,
+    position: 'topleft'
+  });
+
+  map.addControl(searchControl);
+
+  let markers = [];
+  let points = [];
+  let polylines = [];
+  let selectedRoute = null;
+
+  map.on('click', function (e) {
+    if (points.length < 8) {
+      let pointNumber = points.length + 1;
+      points.push([e.latlng.lng, e.latlng.lat]);
+
+      let marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map)
+        .bindTooltip(`Point ${pointNumber}`, { permanent: true, direction: 'top' }).openTooltip();
+
+      markers.push(marker);
+    } else {
+      alert("You can only select up to 8 points.");
+    }
+  });
+
+  async function getRoute() {
+    if (points.length < 2) {
+      alert("Please select at least two points.");
+      return;
+    }
+
+    const url = `https://graphhopper.com/api/1/route?key=${API_KEY}`;
+    const data = {
+      points: points,
+      profile: "car",
+      locale: "en",
+      instructions: true,
+      calc_points: true,
+      points_encoded: false,
+      optimize: true,
+      "alternative_route.max_paths": 3,
+      "alternative_route.max_weight_factor": 1.4,
+      "alternative_route.max_share_factor": 0.6,
+      ch: { disable: true }
+    };
+
+    try {
+      const response = await axios.post(url, data, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      console.log("API Response:", response.data);
+      displayRoutes(response.data.paths);
+    } catch (error) {
+      console.error('Error fetching route:', error.response ? error.response.data : error);
+      alert("Failed to fetch route. Check API key and internet connection.");
+    }
+  }
+
+  async function createGeofenceFromRoute() {
+    if (!selectedRoute || !selectedRoute.points || !selectedRoute.points.coordinates) {
+      alert("Please select a route first.");
+      return;
+    }
+
+    const name = prompt("Enter Geofence Name:");
+    if (!name) return;
+
+    const coords = selectedRoute.points.coordinates.map(c => ({
+      lat: c[1],
+      lng: c[0]
+    }));
+
+    const linestring = "LINESTRING(" + coords.map(p => `${p.lat} ${p.lng}`).join(", ") + ")";
+    const attributes = { type: "route" };
+
+    const body = JSON.stringify({
+      name,
+      area: linestring,
+      attributes
     });
 
-    async function getRoute() {
-        if (points.length < 2) {
-            alert("Please select at least two points.");
-            return;
-        }
-        
-        if (API_KEY === 'REPLACE_WITH_YOUR_GRAPHOPPER_API_KEY') {
-            alert("Please replace the placeholder API key with a valid GraphHopper API key.");
-            return;
-        }
+    try {
+      const response = await fetch("https://gotesting.bazytrack.jo/api/geofences", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Authorization": "Bearer SDBGAiEAuV88T7FwnfMQHa_944gUko6UeE3wDnAwiqWk_WpZsMQCIQD6IaMHO_d4B2orP6ubCzBBnr7vSyZEbuAf67BXs9ewp3sidSI6MSwiZSI6IjIwMjYtMDYtMDRUMjE6MDA6MDAuMDAwKzAwOjAwIn0"
+        },
+        body: body
+      });
 
-        const url = `https://graphhopper.com/api/1/route?key=${API_KEY}`;
-        const data = {
-                points: points,
-                profile: "car",
-                locale: "en",
-                instructions: true,
-                calc_points: true,
-                points_encoded: false,
-                 optimize: true,
-                "alternative_route.max_paths": 3,
-                "alternative_route.max_weight_factor": 1.4,
-                "alternative_route.max_share_factor": 0.6,
-                ch: { disable: true } // <-- Add this!
-        };
-
-
-        try {
-            const response = await axios.post(url, data, {
-                headers: { 'Content-Type': 'application/json' }
-            });
-            console.log("Data - Body:",data);
-            console.log("API Response:", response.data); // Debugging output
-            displayRoutes(response.data.paths);
-        } catch (error) {
-            console.error('Error fetching route:', error.response ? error.response.data : error);
-            alert("Failed to fetch route. Check API key and internet connection.");
-        }
+      const result = await response.text();
+      if (response.status === 200) {
+        alert("Route created successfully. 👍");
+      } else {
+        alert("🔴 Error: " + result);
+      }
+    } catch (error) {
+      console.error("Error sending request:", error);
+      alert("Failed to create geofence.");
     }
+  }
 
-     async function createGeofenceFromRoute() {
-             if (!selectedRoute || !selectedRoute.points || !selectedRoute.points.coordinates) {
-                        alert("Please select a route first.");
-                        return;
-             }
+  function displayRoutes(routes) {
+    clearPolylines();
+    document.getElementById('route-options').innerHTML = "<strong>Select a Route:</strong><br>";
 
-            const name = prompt("Enter Geofence Name:");
-            if (!name) return;
+    routes.forEach((route, index) => {
+      let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
+      let polyline = L.polyline(optimizedRoute, { color: index === 0 ? 'blue' : 'gray' }).addTo(map);
+      polylines.push(polyline);
 
-            // Construct LINESTRING (lng lat, lng lat, ...)
-            const coords = selectedRoute.points.coordinates.map(c => ({
-                lat: c[1],
-                lng: c[0]
-            }));
-            const linestring = "LINESTRING(" + coords.map(p => `${p.lat} ${p.lng}`).join(", ") + ")";
-            const attributes = { type: "route" };
+      let routeBtn = document.createElement("button");
+      routeBtn.innerHTML = `Route ${index + 1}: ${(route.distance / 1000).toFixed(2)} km, ${Math.round(route.time / 60000)} min`;
+      routeBtn.onclick = () => highlightRoute(index, route);
 
-            const body = JSON.stringify({
-                name,
-                area: linestring,
-                attributes
-            });
-
-            try {
-                const response = await fetch("https://gotesting.bazytrack.jo/api/geofences", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                        "Authorization": "Bearer SDBGAiEAuV88T7FwnfMQHa_944gUko6UeE3wDnAwiqWk_WpZsMQCIQD6IaMHO_d4B2orP6ubCzBBnr7vSyZEbuAf67BXs9ewp3sidSI6MSwiZSI6IjIwMjYtMDYtMDRUMjE6MDA6MDAuMDAwKzAwOjAwIn0"
-                    },
-                    body: body
-                });
-                const result = await response.text();
-                if (response.status === 200) {
-                    alert("Route created successfully. 👍");
-                } else {
-                    const result = await response.text();
-                    alert("🔴 Error: " + result);
-                }
-            } catch (error) {
-                console.error("Error sending request:", error);
-                alert("Failed to create geofence.");
-            }
-    }
-      
-    function displayRoutes(routes) {
-        clearPolylines();
-        
-        document.getElementById('route-options').innerHTML = "<strong>Select a Route:</strong><br>";
-    
-        routes.forEach((route, index) => {
-            let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
-            let polyline = L.polyline(optimizedRoute, { color: index === 0 ? 'blue' : 'gray' }).addTo(map);
-            polylines.push(polyline);
-    
-            let routeBtn = document.createElement("button");
-            routeBtn.innerHTML = `Route ${index + 1}: ${(route.distance / 1000).toFixed(2)} km, ${Math.round(route.time / 60000)} min`;
-            routeBtn.onclick = () => highlightRoute(index, route);
-            
-            let geofenceBtn = document.createElement("button");
-            geofenceBtn.innerHTML = "➕ Add as Geofence";
-            geofenceBtn.style.marginLeft = "10px";
-            geofenceBtn.onclick = () => {
-                const optimizedRouteCoords = route.points.coordinates.map(c => [c[1], c[0]]);
-                createGeofenceFromRoute(optimizedRouteCoords);
-            };
-            
-            document.getElementById('route-options').appendChild(routeBtn);
-            document.getElementById('route-options').appendChild(geofenceBtn);
-            document.getElementById('route-options').appendChild(document.createElement("br"));
-        });
-    }
-    function highlightRoute(index, route) {
-        clearPolylines();
+      let geofenceBtn = document.createElement("button");
+      geofenceBtn.innerHTML = "➕ Add as Geofence";
+      geofenceBtn.style.marginLeft = "10px";
+      geofenceBtn.onclick = () => {
         selectedRoute = route;
-        let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
-        let polyline = L.polyline(optimizedRoute, { color: 'green', weight: 5 }).addTo(map);
-        polylines.push(polyline);
+        createGeofenceFromRoute();
+      };
 
-        document.getElementById('route-info').innerHTML = `
-            <strong>Selected Route</strong><br>
-            Distance: ${(route.distance / 1000).toFixed(2)} km<br>
-            Time: ${Math.round(route.time / 60000)} minutes<br>
-        `;
-    }
+      document.getElementById('route-options').appendChild(routeBtn);
+      document.getElementById('route-options').appendChild(geofenceBtn);
+      document.getElementById('route-options').appendChild(document.createElement("br"));
+    });
+  }
 
-    function clearMap() {
-        markers.forEach(marker => map.removeLayer(marker));
-        clearPolylines();
-        markers = [];
-        points = [];
-        document.getElementById('route-options').innerHTML = "";
-        document.getElementById('route-info').innerHTML = "";
-    }
+  function highlightRoute(index, route) {
+    clearPolylines();
+    selectedRoute = route;
 
-    function clearPolylines() {
-        polylines.forEach(polyline => map.removeLayer(polyline));
-        polylines = [];
-    }
+    let optimizedRoute = route.points.coordinates.map(c => [c[1], c[0]]);
+    let polyline = L.polyline(optimizedRoute, { color: 'green', weight: 5 }).addTo(map);
+    polylines.push(polyline);
+
+    document.getElementById('route-info').innerHTML = `
+      <strong>Selected Route</strong><br>
+      Distance: ${(route.distance / 1000).toFixed(2)} km<br>
+      Time: ${Math.round(route.time / 60000)} minutes<br>
+    `;
+  }
+
+  function clearMap() {
+    markers.forEach(marker => map.removeLayer(marker));
+    clearPolylines();
+    markers = [];
+    points = [];
+    document.getElementById('route-options').innerHTML = "";
+    document.getElementById('route-info').innerHTML = "";
+  }
+
+  function clearPolylines() {
+    polylines.forEach(polyline => map.removeLayer(polyline));
+    polylines = [];
+  }
 </script>
 
 </body>
