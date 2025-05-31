@@ -12,30 +12,7 @@
     <!-- Leaflet GeoSearch -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-geosearch@3.0.0/dist/geosearch.css" />
     <script src="https://unpkg.com/leaflet-geosearch@3.0.0/dist/bundle.min.js"></script>
-    <script>
-      const map = L.map('map').setView([31.95013, 35.92487], 14);
     
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-    
-      // Set up provider (Nominatim)
-      const provider = new window.GeoSearch.OpenStreetMapProvider();
-    
-      // Add the search control with autocomplete
-      const searchControl = new window.GeoSearch.GeoSearchControl({
-        provider: provider,
-        style: 'bar',
-        showMarker: true,
-        autoClose: true,
-        retainZoomLevel: false,
-        animateZoom: true,
-        searchLabel: 'Search for a place',
-        keepResult: true
-      });
-    
-      map.addControl(searchControl);
-    </script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"></script>
     <style>
@@ -56,9 +33,26 @@
 <script>
     const API_KEY = 'a3645687-316d-4561-9116-becbd1dfac3a';
     const map = L.map('map').setView([31.95013, 35.92487], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+    
+      // Set up provider (Nominatim)
+      const provider = new window.GeoSearch.OpenStreetMapProvider();
+    
+      // Add the search control with autocomplete
+      const searchControl = new window.GeoSearch.GeoSearchControl({
+        provider: provider,
+        style: 'bar',
+        showMarker: true,
+        autoClose: true,
+        retainZoomLevel: false,
+        animateZoom: true,
+        searchLabel: 'Search for a place',
+        keepResult: true
+      });
+    
+      map.addControl(searchControl);
 
     let markers = [];
     let points = [];
