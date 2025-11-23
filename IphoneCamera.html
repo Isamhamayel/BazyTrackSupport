@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mobile HLS Player</title>
+<title>BazyTrack Mobile Player</title>
 
 <style>
   body {
@@ -18,7 +18,7 @@
   }
   #errorBox {
       background: #330000;
-      color: #ff4444;
+      color: #ff5555;
       border: 1px solid #aa0000;
       padding: 10px;
       margin: 10px;
@@ -34,12 +34,16 @@
 
 <video id="video" controls playsinline muted></video>
 
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<!-- flv.js for Android / Desktop (FLV playback) -->
+<script src="https://cdn.jsdelivr.net/npm/flv.js@latest"></script>
 
 <script>
-const video = document.getElementById("video");
+const video   = document.getElementById("video");
 const errorBox = document.getElementById("errorBox");
-const src = "https://streaming.bazytrack.jo/live/0/864993060752939.m3u8";
+
+// Your URLs
+const hlsUrl = "https://streaming.bazytrack.jo/live/0/864993060752939.m3u8";
+const flvUrl = "https://streaming.bazytrack.jo/live/0/864993060752939.flv";
 
 function showError(msg) {
     errorBox.style.display = "block";
@@ -47,40 +51,45 @@ function showError(msg) {
     console.error(msg);
 }
 
-// iPhone Safari HLS (native)
-if (video.canPlayType("application/vnd.apple.mpegurl")) {
+// Simple iOS detection
+const ua = navigator.userAgent || navigator.vendor || window.opera;
+const isIOS = /iPad|iPhone|iPod/.test(ua);
 
-    video.src = src;
-    video.play().catch(e => {
-        showError("iPhone autoplay blocked: " + e.message);
-    });
-
-    video.onerror = () => {
-        showError("iPhone Safari failed to load the video.");
-    };
-
-// ANDROID + WINDOWS + FIREFOX (needs HLS.js)
-} else if (Hls.isSupported()) {
-
-    const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        debug: false
-    });
-
-    hls.loadSource(src);
-    hls.attachMedia(video);
-
-    hls.on(Hls.Events.ERROR, (event, data) => {
-        showError("HLS.js error: " + data.type + " - " + data.details);
-    });
+// -------- iPhone / iOS: use native HLS (.m3u8) --------
+if (isIOS && video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = hlsUrl;
 
     video.play().catch(e => {
-        showError("Playback blocked (Android): " + e.message);
+        showError("iOS could not autoplay video: " + e.message);
     });
 
+    video.addEventListener("error", function () {
+        // Generic video error on iOS
+        showError("Safari on iPhone failed to load the HLS stream.\nCheck CORS and stream status.");
+    });
+
+// -------- Android / Desktop: use FLV with flv.js --------
+} else if (window.flvjs && flvjs.isSupported()) {
+
+    const flvPlayer = flvjs.createPlayer({
+        type: "flv",
+        url:  flvUrl
+    });
+
+    flvPlayer.attachMediaElement(video);
+    flvPlayer.load();
+
+    flvPlayer.on(flvjs.Events.ERROR, function (errType, errDetail) {
+        showError("flv.js error: " + errType + " - " + errDetail);
+    });
+
+    flvPlayer.play().catch(e => {
+        showError("Playback blocked on this device: " + e.message);
+    });
+
+// -------- Fallback: nothing supported --------
 } else {
-    showError("This browser does not support HLS playback.");
+    showError("This browser does not support HLS on iOS or FLV playback (flv.js).");
 }
 </script>
 
