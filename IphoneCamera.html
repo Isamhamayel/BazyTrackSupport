@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPhone HLS Player</title>
+
+<style>
+  body {
+      margin: 0;
+      background: black;
+      font-family: Arial, sans-serif;
+      color: white;
+  }
+  video {
+      width: 100%;
+      height: auto;
+      background: black;
+  }
+  #errorBox {
+      background: #330000;
+      color: #ff5555;
+      border: 1px solid #aa0000;
+      padding: 10px;
+      margin: 10px;
+      display: none;
+      font-size: 14px;
+      white-space: pre-line;
+  }
+</style>
+</head>
+<body>
+
+<div id="errorBox"></div>
+
+<video id="video" controls playsinline muted></video>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<script>
+const video = document.getElementById("video");
+const errorBox = document.getElementById("errorBox");
+const src = "https://streaming.bazytrack.jo/live/0/864993060752939.m3u8";
+
+// Function to show errors on the page
+function showError(msg) {
+    errorBox.style.display = "block";
+    errorBox.textContent += msg + "\n";
+    console.error(msg);
+}
+
+// iPhone Safari (native HLS)
+if (video.canPlayType("application/vnd.apple.mpegurl")) {
+
+    video.src = src;
+
+    video.play().catch(e => {
+        showError("iOS blocked autoplay: " + e.message);
+    });
+
+    video.addEventListener("error", function() {
+        showError("Safari failed to load the video.\nPossible CORS or HLS error.");
+    });
+
+}
+// Other browsers (hls.js required)
+else if (Hls.isSupported()) {
+
+    var hls = new Hls();
+
+    hls.loadSource(src);
+    hls.attachMedia(video);
+
+    hls.on(Hls.Events.ERROR, function (event, data) {
+        showError("HLS.js error: " + data.type + " - " + data.details);
+    });
+
+    video.play().catch(e => {
+        showError("Playback blocked: " + e.message);
+    });
+
+}
+// Browser does not support HLS
+else {
+    showError("Your browser does not support HLS.");
+}
+</script>
+
+</body>
+</html>
