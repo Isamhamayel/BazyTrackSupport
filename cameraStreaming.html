@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>BazyGo – Video Playback</title>
-
   <style>
     body { font-family: Arial; background:#f7f7f7; padding:20px; }
     .file { padding:10px; margin-bottom:5px; background:white; border-radius:5px; border:1px solid #ddd; cursor:pointer; }
@@ -15,125 +14,131 @@
 </head>
 
 <body>
+  <h2>📹 Video Playback</h2>
 
-<h2>📹 Video Playback</h2>
+  <p>
+    <label><b>Select Date:</b></label>
+    <input type="date" id="datePicker" onchange="loadFiles()" />
+  </p>
 
-<!-- Date Picker -->
-<p>
-  <label><b>Select Date:</b></label>
-  <input type="date" id="datePicker" onchange="loadFiles()" />
-</p>
+  <div>
+    <span id="cam1" class="cam-btn active" onclick="setCamera(1)">Camera 1</span>
+    <span id="cam2" class="cam-btn" onclick="setCamera(2)">Camera 2</span>
+    <span id="camAll" class="cam-btn" onclick="setCamera('all')">All Cameras</span>
+  </div>
 
-<!-- Camera filter -->
-<div>
-  <span id="cam1" class="cam-btn active" onclick="setCamera(1)">Camera 1</span>
-  <span id="cam2" class="cam-btn" onclick="setCamera(2)">Camera 2</span>
-  <span id="camAll" class="cam-btn" onclick="setCamera('all')">All</span>
-</div>
+  <p id="info"></p>
+  <div id="fileList"><i>Please select a date.</i></div>
 
-<p id="info"></p>
+  <h3>Player</h3>
+  <video id="player" width="700" controls></video>
 
-<div id="fileList"><i>Please select a date.</i></div>
+  <script>
+    const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+    const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";  // <-- replace with your WebApp
+    let cameraFilter = 1;
 
-<h3>Player</h3>
-<video id="player" width="700" controls></video>
+    function setCamera(cam) {
+      cameraFilter = cam;
+      document.getElementById("cam1").classList.toggle("active", cam === 1);
+      document.getElementById("cam2").classList.toggle("active", cam === 2);
+      document.getElementById("camAll").classList.toggle("active", cam === "all");
+      loadFiles();  // reload after camera change
+    }
 
-<script>
-// ------------------ CONFIG ------------------
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM/gviz/tq?tqx=out:json";
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
+    // read device list from params
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawParams = urlParams.get("params");
+    if (!rawParams) {
+      document.getElementById("fileList").innerHTML =
+        "<p style='color:red;'>No device list provided.</p>";
+      throw new Error("Missing params");
+    }
+    const decoded = JSON.parse(decodeURIComponent(rawParams));
+    const deviceList = decoded["ds16.devices"].split(",").map(x => x.trim());
 
-let cameraFilter = 1;
+    function formatYMD(dateStr) {
+      // dateStr like "2025-11-26"
+      return dateStr;
+    }
 
-// ----------------- CAMERA BUTTON LOGIC ------------------
-function setCamera(cam) {
-  cameraFilter = cam;
-  camUpdateUI();
-  loadFiles();
-}
+    async function loadFiles() {
+      const sel = document.getElementById("datePicker").value;
+      if (!sel) {
+        document.getElementById("fileList").innerHTML = "<p>Please select a date.</p>";
+        return;
+      }
 
-function camUpdateUI() {
-  document.getElementById("cam1").classList.toggle("active", cameraFilter === 1);
-  document.getElementById("cam2").classList.toggle("active", cameraFilter === 2);
-  document.getElementById("camAll").classList.toggle("active", cameraFilter === "all");
-}
+      const next = new Date(sel);
+      next.setDate(next.getDate() + 1);
+      const nextStr = next.toISOString().split("T")[0];
 
-// ----------------- URL PARAMETERS ------------------
-const urlParams = new URLSearchParams(window.location.search);
-const rawParams = urlParams.get("params");
+      // SQL Query: filter by date range AND device ID in list
+      const query = `select * where A >= date '${sel}' and A < date '${nextStr}' and G in (${deviceList.map(id => "'" + id + "'").join(",")})`;
+      const url = SHEET_URL + "&tq=" + encodeURIComponent(query);
 
-const decodedJSON = JSON.parse(decodeURIComponent(rawParams));
-const deviceIdList = decodedJSON["ds16.devices"].split(",").map(x => x.trim());
+      const resp = await fetch(url);
+      const txt  = await resp.text();
+      const json = JSON.parse(txt.substring(47).slice(0,-2));
 
-// ----------------- HELPERS ------------------
-function sheetDateToYMD(cell) {
-  if (!cell || cell.v === null) return "";
-  const jsDate = new Date((cell.v - 25569) * 86400000);
-  jsDate.setHours(jsDate.getHours() + 3);
-  return jsDate.toISOString().split("T")[0];
-}
+      const rows = (json.table.rows || []).map(r => r.c);
 
-function cellVal(c){ return c ? (c.f || c.v) : ""; }
+      const listDiv = document.getElementById("fileList");
+      listDiv.innerHTML = "";
 
-// ----------------- LOAD FILES ------------------
-async function loadFiles() {
+      const filtered = rows.filter(r => {
+        const cam = r[4] ? r[4].v : "";
+        return (cameraFilter === "all" || cam === String(cameraFilter));
+      });
 
-  const selectedDate = document.getElementById("datePicker").value;
-  if (!selectedDate) {
-    document.getElementById("fileList").innerHTML = "<p>Please select a date.</p>";
-    return;
-  }
+      if (filtered.length === 0) {
+        listDiv.innerHTML = "<p>No videos found.</p>";
+        return;
+      }
 
-  const res = await fetch(SHEET_URL);
-  const text = await res.text();
-  const json = JSON.parse(text.substring(47).slice(0,-2));
+      // Build device names map
+      const deviceNames = {};
+      rows.forEach(r => {
+        const id = r[6].v;
+        deviceNames[id] = r[7] ? r[7].v : id;
+      });
 
-  const rows = json.table.rows.map(r => r.c);
+      document.getElementById("info").innerHTML =
+        `Date: <b>${sel}</b><br>Devices: ${deviceList.map(id => deviceNames[id] || id).join(", ")}`;
 
-  const listDiv = document.getElementById("fileList");
-  listDiv.innerHTML = "";
+      const grouped = {};
+      filtered.forEach(r => {
+        const d = r[6].v;
+        if (!grouped[d]) grouped[d] = [];
+        grouped[d].push(r);
+      });
 
-  // Filter rows
-  const filtered = rows.filter(row => {
-    const rowDate     = sheetDateToYMD(row[0]);
-    const rowDeviceId = String(row[6].v);
-    const rowCamera   = String(row[4].v);
+      for (const did of Object.keys(grouped)) {
+        const title = document.createElement("div");
+        title.className = "device-title";
+        title.textContent = "📌 " + (deviceNames[did] || did);
+        listDiv.appendChild(title);
 
-    const matchDate   = rowDate === selectedDate;
-    const matchDevice = deviceIdList.includes(rowDeviceId);
-    const matchCamera = 
-      (cameraFilter === "all") || (rowCamera === String(cameraFilter));
+        grouped[did].forEach(r => {
+          const div = document.createElement("div");
+          div.className = "file";
+          div.textContent = r[2].v;  // filename
+          div.onclick = () => playVideo(r);
+          listDiv.appendChild(div);
+        });
+      }
+    }
 
-    return matchDate && matchDevice && matchCamera;
-  });
+    function playVideo(r) {
+      const deviceId = r[6].v;
+      const filename = r[2].v;
 
-  if (!filtered.length) {
-    listDiv.innerHTML = "<p>No videos found.</p>";
-    return;
-  }
+      fetch(`${WEBAPP_URL}?deviceId=${deviceId}&filename=${filename}`);
 
-  // Build device name map
-  const deviceNames = {};
-  rows.forEach(row => {
-    const devId = String(row[6].v);
-    const devName = row[7] ? row[7].v : "";
-    deviceNames[devId] = devName;
-  });
-
-  document.getElementById("info").innerHTML =
-    `Date: <b>${selectedDate}</b><br>
-     Devices: ${deviceIdList.map(id => deviceNames[id] || id).join(", ")}`;
-
-  // Group by device
-  const grouped = {};
-  filtered.forEach(r => {
-    const dev = String(r[6].v);
-    if (!grouped[dev]) grouped[dev] = [];
-    grouped[dev].push(r);
-  });
-
-  // Render
-  for (const devId of Object.keys(grouped)) {
-
-    const title = document.createElement("div");
-    title
+      const fileUrl = "https://bazymedia.treesal.com/uploads/" + filename;
+      document.getElementById("player").src = fileUrl;
+    }
+  </script>
+</body>
+</html>
