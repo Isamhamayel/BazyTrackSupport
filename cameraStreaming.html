@@ -21,7 +21,6 @@
 
 <h2>📹 Camera Playback</h2>
 
-<!-- FILTERS -->
 <p>
   <label><b>Device:</b></label>
   <select id="deviceSelect" onchange="loadFiles()">
@@ -37,7 +36,6 @@
   </select>
 </p>
 
-<!-- CAMERA FILTER -->
 <div>
   <span id="cam1" class="cam-btn active" onclick="setCamera(1)">Camera 1</span>
   <span id="cam2" class="cam-btn" onclick="setCamera(2)">Camera 2</span>
@@ -46,34 +44,31 @@
 
 <p id="info"></p>
 
-<!-- FILE LIST -->
 <div id="fileList"><i>Select device, date, and hour.</i></div>
 
-<!-- PLAYER -->
 <h3>Player</h3>
 <video id="player" width="700" controls></video>
 
 <script>
-// ====================== CONFIG ==========================
+
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-
-const WEBAPP_URL = "YOUR_WEBAPP_URL";          // TODO
-const MEDIA_BASE_URL = "YOUR_MEDIA_BASE_URL";  // TODO
+const WEBAPP_URL = "YOUR_WEBAPP_URL";
+const MEDIA_BASE_URL = "YOUR_MEDIA_BASE_URL";
 
 let cameraFilter = 1;
 
-// ================== HOUR DROPDOWN ========================
+// Hour dropdown
 const hourSelect = document.getElementById("hourSelect");
 for (let h = 0; h < 24; h++) {
-  const hh = h.toString().padStart(2, '0');
+  const hh = h.toString().padStart(2,'0');
   const opt = document.createElement("option");
   opt.value = hh;
-  opt.textContent = `${hh}:00`;
+  opt.textContent = hh + ":00";
   hourSelect.appendChild(opt);
 }
 
-// ================= CAMERA BUTTONS ========================
+// Camera buttons
 function setCamera(cam) {
   cameraFilter = cam;
   document.getElementById("cam1").classList.toggle("active", cam === 1);
@@ -82,23 +77,12 @@ function setCamera(cam) {
   loadFiles();
 }
 
-// ================= DEVICE LIST FROM PARAMS ===============
+// Device list from params
 const urlParams = new URLSearchParams(window.location.search);
 const rawParams = urlParams.get("params");
-
-if (!rawParams) {
-  document.getElementById("fileList").innerHTML =
-    "<p style='color:red;'>Missing params. No devices found.</p>";
-  throw "Missing params";
-}
-
 const decoded = JSON.parse(decodeURIComponent(rawParams));
-const deviceList = decoded["ds16.devices"]
-  .split(",")
-  .map(x => x.trim())
-  .filter(x => x.length > 0);
+const deviceList = decoded["ds16.devices"].split(",").map(x => x.trim());
 
-// Fill device dropdown
 const deviceSelect = document.getElementById("deviceSelect");
 deviceList.forEach(id => {
   const opt = document.createElement("option");
@@ -107,10 +91,7 @@ deviceList.forEach(id => {
   deviceSelect.appendChild(opt);
 });
 
-document.getElementById("info").innerHTML = "Devices: " + deviceList.join(", ");
-
-
-// ====================== LOAD FILES =======================
+// MAIN LOAD FUNCTION
 async function loadFiles() {
 
   const deviceId = deviceSelect.value;
@@ -124,75 +105,58 @@ async function loadFiles() {
     return;
   }
 
-  // Convert Amman hour → UTC hour
-  const ammanHour = parseInt(hourVal, 10);
-  const utcHour   = (ammanHour - 3 + 24) % 24;
-
-  // Build UTC date string
-  const startUTC = `${dateVal}T${utcHour.toString().padStart(2,'0')}:00:00`;
-  const endUTC   = `${dateVal}T${((utcHour+1)%24).toString().padStart(2,'0')}:00:00`;
-
-  // Convert to serial numbers
-  const startSerial = (new Date(startUTC).getTime() / 86400000) + 25569;
-  const endSerial   = (new Date(endUTC).getTime() / 86400000) + 25569;
-
-  // SQL: fast numeric filtering
-  const query = `
-    select *
-    where G = '${deviceId}'
-    and A >= ${startSerial}
-    and A < ${endSerial}
-  `;
-
+  // Query only device (FAST AND CORRECT)
+  const query = `select * where G = ${deviceId} order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(query);
+
   fileList.innerHTML = "<p>Loading...</p>";
 
-  try {
-    const resp = await fetch(url);
-    const txt  = await resp.text();
-    const json = JSON.parse(txt.substring(47).slice(0, -2));
+  const resp = await fetch(url);
+  const txt  = await resp.text();
+  const json = JSON.parse(txt.substring(47).slice(0, -2));
+  let rows = (json.table.rows || []).map(r => r.c);
 
-    let rows = (json.table.rows || []).map(r => r.c);
+  // Filter by camera
+  rows = rows.filter(r => {
+    const cam = String(r[4].v);
+    return cameraFilter === "all" || cam === String(cameraFilter);
+  });
 
-    // Camera filter
-    rows = rows.filter(r => {
-      const cam = r[4]?.v || "";
-      return (cameraFilter === "all" || cam === String(cameraFilter));
-    });
+  // Convert r[0].f into real Date (Amman time)
+  rows = rows.filter(r => {
+    const dt = new Date(r[0].f.replace(" ", "T"));
+    const amman = new Date(dt.getTime() + (3 * 3600000)); // UTC+3
+    const yyyy = amman.toISOString().substring(0,10);
+    const hh   = amman.getHours().toString().padStart(2,'0');
 
-    if (rows.length === 0) {
-      fileList.innerHTML = "<p>No videos found.</p>";
-      return;
-    }
+    return (yyyy === dateVal && hh === hourVal);
+  });
 
-    // Render results
-    fileList.innerHTML = "";
-    rows.forEach(r => {
-      const div = document.createElement("div");
-      div.className = "file";
-      div.textContent = r[2].v;
-      div.onclick = () => playVideo(r);
-      fileList.appendChild(div);
-    });
-
-  } catch (err) {
-    fileList.innerHTML = "<p style='color:red;'>Error: " + err + "</p>";
+  if (rows.length === 0) {
+    fileList.innerHTML = "<p>No videos found.</p>";
+    return;
   }
+
+  // Render rows
+  fileList.innerHTML = "";
+  rows.forEach(r => {
+    const div = document.createElement("div");
+    div.className = "file";
+    div.textContent = r[2].v;
+    div.onclick = () => playVideo(r);
+    fileList.appendChild(div);
+  });
 }
 
-// ====================== PLAY VIDEO =======================
 function playVideo(row) {
   const deviceId = row[6].v;
   const filename = row[2].v;
 
-  // Send custom command to camera via Web App
   fetch(`${WEBAPP_URL}?deviceId=${deviceId}&filename=${filename}`);
-
-  // Play video
-  document.getElementById("player").src =
-    MEDIA_BASE_URL + filename;
+  document.getElementById("player").src = MEDIA_BASE_URL + filename;
 }
 
 </script>
+
 </body>
 </html>
