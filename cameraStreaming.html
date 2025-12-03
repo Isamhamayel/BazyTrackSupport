@@ -179,7 +179,10 @@ async function loadFiles() {
 
       // extract hour from string directly (NO new Date())
       const hh = time.split(":")[0];  // "13"
-
+      console.log("date sheet =",yyyy_mm_dd);
+      console.log("date = ",dateSel);
+      console.log("hours sheet =",hh);
+      console.log("hours = ",hourSel);
       // filters
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
