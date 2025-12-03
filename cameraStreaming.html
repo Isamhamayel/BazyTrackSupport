@@ -233,7 +233,7 @@ function playVideo(fname, deviceId, imei) {
     WEBAPP_URL +
     "?type=playback" +
     "&deviceId=" + encodeURIComponent(deviceId) +
-    "&filename=" + encodeURIComponent(fname);
+    "&fileName=" + encodeURIComponent(fname);
 
   fetch(url)
     .then(r => r.text())
