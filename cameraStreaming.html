@@ -139,8 +139,8 @@ deviceList.forEach(id => {
 async function loadFiles() {
 
   const deviceId = deviceSelect.value;
-  const dateSel = document.getElementById("datePicker").value;
-  const hourSel = document.getElementById("hourPicker").value;
+  const dateSel  = document.getElementById("datePicker").value;
+  const hourSel  = document.getElementById("hourPicker").value;
   const fileList = document.getElementById("fileList");
 
   if (!deviceId || !dateSel || !hourSel) {
@@ -148,7 +148,7 @@ async function loadFiles() {
     return;
   }
 
-  // SQL بدون علامات '' لأن G رقم
+  // G is numeric → no quotes
   const sql = `select * where G=${deviceId} order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
@@ -163,32 +163,53 @@ async function loadFiles() {
     const out = [];
 
     rows.forEach(r => {
+
       const cols = r.c;
       if (!cols) return;
 
-      // Reading formatted date
-      const raw = cols[0].f;  
-      const [mdy, time] = raw.split(" ");
-      const [M, D, Y] = mdy.split("/");
+      /* ------------------------------------------------------
+         1) FIX DATE FORMAT ISSUE
+         Google Sheet gives "6/11/2025 14:32:10"
+         Datepicker gives "2025-06-11"
+         → We must normalize using JS Date()
+      ------------------------------------------------------- */
 
-      const yyyy_mm_dd = `${Y}-${M.padStart(2, "0")}-${D.padStart(2, "0")}`;
-      const hh = time.split(":")[0].padStart(2, "0");
+      const formatted = cols[0].f;  // Example: "6/11/2025 14:32:10"
+      if (!formatted) return;
 
-      // Filters
+      const d = new Date(formatted);
+
+      // Convert to yyyy-mm-dd (ISO-like)
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      const yyyy_mm_dd = `${yyyy}-${mm}-${dd}`;
+
+      // Extract hour
+      const hh = String(d.getHours()).padStart(2, "0");
+
+      // Apply filters
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
 
       const camVal = cols[4]?.v;
       if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
+      /* ------------------------------------------------------
+         Push result
+      ------------------------------------------------------- */
       out.push({
-        time,
+        time: formatted.split(" ")[1], // keep original time string
         filename: cols[2].v,
         imei: cols[1].f,
         deviceId: cols[6].v
       });
+
     });
 
+    /* ------------------------------------------------------
+       CREATE LIST
+    ------------------------------------------------------- */
     if (!out.length) {
       fileList.innerHTML = "لا يوجد ملفات في هذه الساعة.";
       return;
@@ -210,6 +231,7 @@ async function loadFiles() {
     console.error(e);
   }
 }
+
 
 /* ============================================================
    VIDEO PLAYER
