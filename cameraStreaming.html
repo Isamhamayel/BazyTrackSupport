@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>BazyGo – Video Player</title>
 
-<!-- HLS.JS -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
@@ -57,7 +56,7 @@
 
 <div class="container">
 
-  <!-- LEFT SIDE -->
+  <!-- LEFT -->
   <div class="left">
     <h3>📁 قائمة الفيديوهات</h3>
 
@@ -84,7 +83,7 @@
 
   </div>
 
-  <!-- RIGHT SIDE -->
+  <!-- RIGHT -->
   <div class="right">
     <h3>🎥 المشغّل</h3>
 
@@ -97,33 +96,22 @@
 
 
 <script>
-/* ------------------------------------------------------------
-   CONFIG
------------------------------------------------------------- */
+/* ========== CONFIG ========== */
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
 
-/* ============================================================
-   STATE
-============================================================ */
+/* ========== STATE ========== */
 let cameraFilter = 1;
 
-/* ============================================================
-   BUILD HOURS LIST
-============================================================ */
+/* ========== HOURS LIST ========== */
 const hourPicker = document.getElementById("hourPicker");
 for (let h = 0; h < 24; h++) {
   const hh = h.toString().padStart(2, "0");
-  const opt = document.createElement("option");
-  opt.value = hh;
-  opt.textContent = hh + ":00";
-  hourPicker.appendChild(opt);
+  hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
 }
 
-/* ============================================================
-   CAMERA SELECT
-============================================================ */
+/* ========== CAMERA FILTER ========== */
 function setCam(c) {
   cameraFilter = c;
 
@@ -134,9 +122,7 @@ function setCam(c) {
   loadFiles();
 }
 
-/* ============================================================
-   READ DEVICES FROM URL PARAMS
-============================================================ */
+/* ========== READ DEVICES FROM LOOKER PARAMS ========== */
 const params = new URLSearchParams(window.location.search);
 const devicesJSON = params.get("params");
 const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
@@ -144,14 +130,11 @@ const deviceList = (decoded["ds16.devices"] || "").split(",").map(x => x.trim())
 
 const deviceSelect = document.getElementById("deviceSelect");
 deviceList.forEach(id => {
-  const opt = document.createElement("option");
-  opt.value = id;
-  opt.textContent = "Device " + id;
-  deviceSelect.appendChild(opt);
+  deviceSelect.innerHTML += `<option value="${id}">Device ${id}</option>`;
 });
 
 /* ============================================================
-   LOAD FILES
+   LOAD FILES — FINAL FIXED VERSION
 ============================================================ */
 async function loadFiles() {
 
@@ -183,27 +166,32 @@ async function loadFiles() {
       const cols = r.c;
       if (!cols) return;
 
-      // Always formatted date
-      const rawDate = cols[0].f;
-      if (!rawDate) return;
+      // Read REAL date
+      const raw = cols[0].v;
+      if (!raw) return;
 
-      const [mdy, time] = rawDate.split(" ");
-      const [M, D, Y] = mdy.split("/");
+      // Parse Date(YYYY,MM,DD,hh,mm,ss)
+      const match = raw.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
+      if (!match) return;
 
-      const yyyy_mm_dd = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
-      const hh = time.split(":")[0].padStart(2,"0");
+      const [_, Y, M, D, hh, mm, ss] = match.map(Number);
+      const jsDate = new Date(Y, M, D, hh, mm, ss);
+
+      // Format for comparison
+      const yyyy_mm_dd = jsDate.toISOString().split('T')[0];
+      const hour = jsDate.getHours().toString().padStart(2, "0");
 
       if (yyyy_mm_dd !== dateSel) return;
-      if (hh !== hourSel) return;
+      if (hour !== hourSel) return;
 
       const camVal = cols[4]?.v;
       if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
       out.push({
-        time,
+        time: jsDate.toLocaleTimeString(),
         filename: cols[2].v,
         imei: cols[1].f || cols[1].v,
-        deviceId: cols[6].f || cols[6].v
+        deviceId: cols[6].v
       });
     });
 
@@ -228,7 +216,7 @@ async function loadFiles() {
 }
 
 /* ============================================================
-   VIDEO PLAYER HELPERS
+   VIDEO PLAYER
 ============================================================ */
 function stopPlayer() {
   const video = document.getElementById("player");
@@ -243,9 +231,6 @@ function stopPlayer() {
   video.load();
 }
 
-/* ============================================================
-   PLAY VIDEO
-============================================================ */
 function playVideo(fname, deviceId, imei) {
 
   stopPlayer();
