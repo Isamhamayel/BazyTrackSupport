@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <title>BazyGo – Video Player</title>
 
+<!-- HLS.JS -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
 <style>
   body { margin:0; font-family:Arial; background:#f2f2f2; }
   .container { display:flex; height:100vh; }
@@ -28,8 +31,7 @@
 
   .cam-btn {
     padding:4px 10px; border:1px solid #999; margin-right:6px; border-radius:4px;
-    cursor:pointer;
-    font-size:13px;
+    cursor:pointer; font-size:13px;
   }
   .cam-btn.active { background:#2196F3; color:white; }
 
@@ -75,10 +77,11 @@
   <!-- RIGHT SIDE -->
   <div class="right">
     <h3>🎥 المشغّل</h3>
-    <video id="player" width="100%" height="480" controls style="background:black;"></video>
+    <video id="player" width="100%" height="480" controls muted playsinline style="background:black;"></video>
   </div>
 
 </div>
+
 
 <script>
 /* ------------------------------------------------------------
@@ -86,11 +89,7 @@
 ------------------------------------------------------------ */
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-
-// ضع رابط Google Script WebApp الحقيقي هنا:
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
-
-// FLV STREAM BASE (لا تغيّره إلا إذا تغيّر السيرفر)
 const STREAM_URL = "https://streaming.bazytrack.jo/live/0/";
 
 /* ============================================================
@@ -142,13 +141,13 @@ deviceList.forEach(id => {
 });
 
 /* ============================================================
-   MAIN FUNCTION TO LOAD FILES FROM SHEET
+   LOAD FILES
 ============================================================ */
 async function loadFiles() {
 
   const deviceId = deviceSelect.value;
-  const dateSel  = document.getElementById("datePicker").value; // yyyy-MM-dd
-  const hourSel  = document.getElementById("hourPicker").value; // HH
+  const dateSel  = document.getElementById("datePicker").value;
+  const hourSel  = document.getElementById("hourPicker").value;
 
   const fileList = document.getElementById("fileList");
 
@@ -157,7 +156,6 @@ async function loadFiles() {
     return;
   }
 
-  // ONLY filter by device in SQL (fastest, most reliable)
   const sql = `select * where G=${deviceId} order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
@@ -175,23 +173,18 @@ async function loadFiles() {
       const cols = r.c;
       if (!cols) return;
 
-      // Amman date/time comes from f
-      const raw = cols[0].f; // Example: "11/26/2025 9:03:52"
-
+      const raw = cols[0].f;
       const [mdy, time] = raw.split(" ");
       const [M, D, Y] = mdy.split("/");
 
-      const yyyy_mm_dd =
-        `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
-
+      const yyyy_mm_dd = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
       const hh = time.split(":")[0].padStart(2,"0");
 
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
 
       const camVal = cols[4]?.v;
-      if (cameraFilter !== "all" &&
-          String(camVal) !== String(cameraFilter)) return;
+      if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
       out.push({
         time,
@@ -210,10 +203,8 @@ async function loadFiles() {
     out.forEach(v => {
       const div = document.createElement("div");
       div.className = "file";
-      div.innerHTML =
-        `<div class="time-label">${v.filename}</div>${v.time}`;
-      div.onclick = () =>
-        playVideo(v.filename, v.deviceId, v.imei);
+      div.innerHTML = `<div class="time-label">${v.filename}</div>${v.time}`;
+      div.onclick = () => playVideo(v.filename, v.deviceId, v.imei);
       fileList.appendChild(div);
     });
 
@@ -224,15 +215,10 @@ async function loadFiles() {
 }
 
 /* ============================================================
-   PLAY VIDEO
+   PLAY VIDEO (HLS)
 ============================================================ */
-
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
-<script>
 function playVideo(fname, deviceId, imei) {
 
-  // Send command
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
   const stream = `https://streaming.bazytrack.jo/live/0/${imei}/index.m3u8`;
@@ -246,17 +232,18 @@ function playVideo(fname, deviceId, imei) {
     window.hls.attachMedia(video);
 
     window.hls.on(Hls.Events.MANIFEST_PARSED, function () {
-      video.play().catch(err => console.log(err));
+      video.play().catch(err => console.log("Autoplay error:", err));
+    });
+
+    window.hls.on(Hls.Events.ERROR, function (evt, data) {
+      console.error("HLS Error:", data);
     });
 
   } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = stream;
-    video.play().catch(err => console.log(err));
+    video.play().catch(err => console.log("Playback error:", err));
   }
 }
-</script>
-
-
 
 </script>
 
