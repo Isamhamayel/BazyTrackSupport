@@ -228,24 +228,35 @@ async function loadFiles() {
 ============================================================ */
 function playVideo(fname, deviceId, imei) {
 
-  // 1) Call Google Script backend to send HVIDEO
-  const url =
-    WEBAPP_URL +
-    "?type=playback" +
-    "&deviceId=" + encodeURIComponent(deviceId) +
-    "&fileName=" + encodeURIComponent(fname);
+  // 1) Send command
+  fetch(
+    `${WEBAPP_URL}?type=playback&deviceId=${deviceId}&filename=${fname}`
+  );
 
-  fetch(url)
-    .then(r => r.text())
-    .then(resp => {
-      console.log("Playback command sent:", resp);
-    })
-    .catch(err => console.error("GS Error:", err));
+  // 2) HLS streaming
+  const stream = `https://streaming.bazytrack.jo/live/0/${imei}.m3u8`;
+  const video = document.getElementById("player");
 
-  // 2) Play FLV live stream
-  const stream = STREAM_URL + imei + ".m3u8";
-  document.getElementById("player").src = stream;
+  if (Hls.isSupported()) {
+    if (window.hls) window.hls.destroy();
+
+    window.hls = new Hls({
+      debug: false
+    });
+
+    window.hls.loadSource(stream);
+    window.hls.attachMedia(video);
+    window.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+    window.hls.on(Hls.Events.ERROR, (evt, data) => {
+      console.error("HLS Error:", data);
+    });
+
+  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = stream;
+    video.play();
+  }
 }
+
 
 </script>
 
