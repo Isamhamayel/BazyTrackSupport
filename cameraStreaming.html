@@ -139,9 +139,8 @@ deviceList.forEach(id => {
 async function loadFiles() {
 
   const deviceId = deviceSelect.value;
-  const dateSel  = document.getElementById("datePicker").value;
-  const hourSel  = document.getElementById("hourPicker").value;
-
+  const dateSel = document.getElementById("datePicker").value;
+  const hourSel = document.getElementById("hourPicker").value;
   const fileList = document.getElementById("fileList");
 
   if (!deviceId || !dateSel || !hourSel) {
@@ -149,7 +148,8 @@ async function loadFiles() {
     return;
   }
 
-  const sql = `select * where G='${deviceId}' order by A desc`;
+  // SQL بدون علامات '' لأن G رقم
+  const sql = `select * where G=${deviceId} order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
   fileList.innerHTML = "جارِ التحميل...";
@@ -166,31 +166,25 @@ async function loadFiles() {
       const cols = r.c;
       if (!cols) return;
 
-      // Read REAL date
-      const raw = cols[0].v;
-      if (!raw) return;
+      // Reading formatted date
+      const raw = cols[0].f;  
+      const [mdy, time] = raw.split(" ");
+      const [M, D, Y] = mdy.split("/");
 
-      // Parse Date(YYYY,MM,DD,hh,mm,ss)
-      const match = raw.match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
-      if (!match) return;
+      const yyyy_mm_dd = `${Y}-${M.padStart(2, "0")}-${D.padStart(2, "0")}`;
+      const hh = time.split(":")[0].padStart(2, "0");
 
-      const [_, Y, M, D, hh, mm, ss] = match.map(Number);
-      const jsDate = new Date(Y, M, D, hh, mm, ss);
-
-      // Format for comparison
-      const yyyy_mm_dd = jsDate.toISOString().split('T')[0];
-      const hour = jsDate.getHours().toString().padStart(2, "0");
-
+      // Filters
       if (yyyy_mm_dd !== dateSel) return;
-      if (hour !== hourSel) return;
+      if (hh !== hourSel) return;
 
       const camVal = cols[4]?.v;
       if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
       out.push({
-        time: jsDate.toLocaleTimeString(),
+        time,
         filename: cols[2].v,
-        imei: cols[1].f || cols[1].v,
+        imei: cols[1].f,
         deviceId: cols[6].v
       });
     });
@@ -201,10 +195,12 @@ async function loadFiles() {
     }
 
     fileList.innerHTML = "";
+
     out.forEach(v => {
       const div = document.createElement("div");
       div.className = "file";
-      div.innerHTML = `<div class="time-label">${v.filename}</div>${v.time}`;
+      div.innerHTML =
+        `<div class="time-label">${v.filename}</div>${v.time}`;
       div.onclick = () => playVideo(v.filename, v.deviceId, v.imei);
       fileList.appendChild(div);
     });
