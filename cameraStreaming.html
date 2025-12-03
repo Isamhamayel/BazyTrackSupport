@@ -8,11 +8,11 @@
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
-  body { margin:0; font-family:Arial; background:#f2f2f2; }
+  body { margin:0; font-family:Arial; background:#f2f2f2; direction:rtl; }
   .container { display:flex; height:100vh; }
 
   .left {
-    width:45%; background:white; border-right:2px solid #ddd;
+    width:45%; background:white; border-left:2px solid #ddd;
     padding:15px; overflow-y:auto; box-sizing:border-box;
   }
 
@@ -34,6 +34,16 @@
     cursor:pointer; font-size:13px;
   }
   .cam-btn.active { background:#2196F3; color:white; }
+
+  #loading {
+    display:none;
+    padding:8px;
+    background:#fff3cd;
+    border:1px solid #ffeeba;
+    border-radius:5px;
+    margin-bottom:10px;
+    color:#856404;
+  }
 
   .controls select,
   .controls input[type="date"] {
@@ -77,6 +87,9 @@
   <!-- RIGHT SIDE -->
   <div class="right">
     <h3>🎥 المشغّل</h3>
+
+    <div id="loading">⏳ جارِ تجهيز الفيديو…</div>
+
     <video id="player" width="100%" height="480" controls muted playsinline style="background:black;"></video>
   </div>
 
@@ -90,7 +103,6 @@
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
-const STREAM_URL = "https://streaming.bazytrack.jo/live/0/";
 
 /* ============================================================
    STATE
@@ -128,12 +140,10 @@ function setCam(c) {
 const params = new URLSearchParams(window.location.search);
 const devicesJSON = params.get("params");
 const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
-const deviceList = decoded["ds16.devices"] ? decoded["ds16.devices"].split(",") : [];
+const deviceList = (decoded["ds16.devices"] || "").split(",").map(x => x.trim()).filter(x => x);
 
 const deviceSelect = document.getElementById("deviceSelect");
 deviceList.forEach(id => {
-  id = id.trim();
-  if (!id) return;
   const opt = document.createElement("option");
   opt.value = id;
   opt.textContent = "Device " + id;
@@ -173,7 +183,7 @@ async function loadFiles() {
       const cols = r.c;
       if (!cols) return;
 
-      const raw = cols[0].f;
+      const raw = cols[0].f || cols[0].v;
       const [mdy, time] = raw.split(" ");
       const [M, D, Y] = mdy.split("/");
 
@@ -183,13 +193,13 @@ async function loadFiles() {
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
 
-      const camVal = cols[4]?.v;
+      const camVal = cols[4]?.v || cols[4]?.f;
       if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
       out.push({
         time,
         filename: cols[2].v,
-        imei: cols[1].f,
+        imei: cols[1].v || cols[1].f,
         deviceId: cols[6].v
       });
     });
@@ -215,9 +225,9 @@ async function loadFiles() {
 }
 
 /* ============================================================
-   PLAY VIDEO (HLS)
+   VIDEO PLAYER HELPERS
 ============================================================ */
-  function stopPlayer() {
+function stopPlayer() {
   const video = document.getElementById("player");
 
   if (window.hls) {
@@ -230,43 +240,40 @@ async function loadFiles() {
   video.load();
 }
 
+/* ============================================================
+   PLAY VIDEO
+============================================================ */
 function playVideo(fname, deviceId, imei) {
 
-   // ALWAYS STOP OLD STREAM FIRST
   stopPlayer();
-  
-  // 1) Send command to camera
+
+  document.getElementById("loading").style.display = "block";
+
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
-  // 2) Expected HLS URL
   const stream = `https://streaming.bazytrack.jo/live/0/${imei}.m3u8`;
   const video = document.getElementById("player");
 
-  // 3) Start checking if stream is ready
   checkStreamReady(stream, video, 0);
 }
 
 function checkStreamReady(url, video, attempts) {
 
-  // Maximum waiting time = 30 seconds (15 attempts)
   if (attempts > 15) {
-    console.error("Stream not ready after 30 seconds.");
     alert("⚠ الفيديو غير جاهز بعد. حاول مرة أخرى.");
+    document.getElementById("loading").style.display = "none";
     return;
   }
 
   fetch(url, { method: 'HEAD' })
     .then(res => {
       if (res.ok) {
-        console.log("Stream READY. Loading...");
         startHLS(url, video);
       } else {
-        console.log("Stream not ready yet, retrying...");
         setTimeout(() => checkStreamReady(url, video, attempts + 1), 2000);
       }
     })
     .catch(() => {
-      console.log("Stream not ready yet, retrying...");
       setTimeout(() => checkStreamReady(url, video, attempts + 1), 2000);
     });
 }
@@ -274,6 +281,7 @@ function checkStreamReady(url, video, attempts) {
 function startHLS(url, video) {
 
   if (Hls.isSupported()) {
+
     if (window.hls) window.hls.destroy();
 
     window.hls = new Hls();
@@ -281,11 +289,13 @@ function startHLS(url, video) {
     window.hls.attachMedia(video);
 
     window.hls.on(Hls.Events.MANIFEST_PARSED, function () {
-      video.play().catch(err => console.log("Autoplay error:", err));
+      document.getElementById("loading").style.display = "none";
+      video.play();
     });
 
   } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = url;
+    document.getElementById("loading").style.display = "none";
     video.play();
   }
 }
