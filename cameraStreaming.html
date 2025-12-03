@@ -1,28 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>BazyGo – Camera Playback</title>
-  <style>
-    body { font-family: Arial; background:#f7f7f7; padding:20px; }
-    .file { padding:10px; margin-bottom:5px; background:white; border-radius:5px; border:1px solid #ddd; cursor:pointer; }
-    .file:hover { background:#eee; }
-    .device-title { margin-top:25px; font-weight:bold; font-size:18px; }
-    .cam-btn { padding:6px 12px; border:1px solid #888; margin-right:6px; border-radius:4px; cursor:pointer; display:inline-block; }
-    .cam-btn.active { background:#007bff; color:white; border-color:#0056b3; }
-    select, input[type="date"] { padding:4px 6px; margin-right:8px; }
-  </style>
-</head>
+<meta charset="UTF-8">
+<title>BazyGo – Video Playback</title>
 
+<style>
+  body { font-family: Arial; background:#f7f7f7; padding:20px; }
+  .file { padding:10px; margin-bottom:5px; background:white; border-radius:5px;
+          border:1px solid #ddd; cursor:pointer; }
+  .file:hover { background:#eee; }
+  .device-title { margin-top:25px; font-weight:bold; font-size:18px; }
+  .cam-btn { padding:6px 12px; border:1px solid #888; margin-right:6px;
+             border-radius:4px; cursor:pointer; display:inline-block; }
+  .cam-btn.active { background:#007bff; color:white; border-color:#0056b3; }
+  select, input[type="date"] { padding:4px 6px; margin-right:8px; }
+</style>
+
+</head>
 <body>
 
 <h2>📹 Camera Playback</h2>
 
-<!-- Device -->
+<!-- FILTERS -->
 <p>
   <label><b>Device:</b></label>
   <select id="deviceSelect" onchange="loadFiles()">
-    <option value="">-- select device --</option>
+    <option value="">-- Select device --</option>
   </select>
 
   <label><b>Date:</b></label>
@@ -30,11 +33,11 @@
 
   <label><b>Hour:</b></label>
   <select id="hourSelect" onchange="loadFiles()">
-    <option value="">-- select hour --</option>
+    <option value="">-- Hour --</option>
   </select>
 </p>
 
-<!-- Camera filter -->
+<!-- CAMERA FILTER -->
 <div>
   <span id="cam1" class="cam-btn active" onclick="setCamera(1)">Camera 1</span>
   <span id="cam2" class="cam-btn" onclick="setCamera(2)">Camera 2</span>
@@ -43,31 +46,34 @@
 
 <p id="info"></p>
 
+<!-- FILE LIST -->
 <div id="fileList"><i>Select device, date, and hour.</i></div>
 
+<!-- PLAYER -->
 <h3>Player</h3>
 <video id="player" width="700" controls></video>
 
 <script>
-// Constants
+// ====================== CONFIG ==========================
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
-const MEDIA_BASE_URL = "YOUR_MEDIA_BASE_URL";
+
+const WEBAPP_URL = "YOUR_WEBAPP_URL";          // TODO
+const MEDIA_BASE_URL = "YOUR_MEDIA_BASE_URL";  // TODO
 
 let cameraFilter = 1;
 
-// Setup hour dropdown
+// ================== HOUR DROPDOWN ========================
 const hourSelect = document.getElementById("hourSelect");
 for (let h = 0; h < 24; h++) {
-  const v = h.toString().padStart(2, '0');
+  const hh = h.toString().padStart(2, '0');
   const opt = document.createElement("option");
-  opt.value = v;
-  opt.textContent = `${v}:00`;
+  opt.value = hh;
+  opt.textContent = `${hh}:00`;
   hourSelect.appendChild(opt);
 }
 
-// Camera UI
+// ================= CAMERA BUTTONS ========================
 function setCamera(cam) {
   cameraFilter = cam;
   document.getElementById("cam1").classList.toggle("active", cam === 1);
@@ -76,15 +82,21 @@ function setCamera(cam) {
   loadFiles();
 }
 
-// Read params list
+// ================= DEVICE LIST FROM PARAMS ===============
 const urlParams = new URLSearchParams(window.location.search);
 const rawParams = urlParams.get("params");
+
 if (!rawParams) {
-  document.getElementById("fileList").innerHTML = "<p style='color:red;'>Missing params.</p>";
-  throw new Error("No params");
+  document.getElementById("fileList").innerHTML =
+    "<p style='color:red;'>Missing params. No devices found.</p>";
+  throw "Missing params";
 }
+
 const decoded = JSON.parse(decodeURIComponent(rawParams));
-const deviceList = decoded["ds16.devices"].split(",").map(x => x.trim());
+const deviceList = decoded["ds16.devices"]
+  .split(",")
+  .map(x => x.trim())
+  .filter(x => x.length > 0);
 
 // Fill device dropdown
 const deviceSelect = document.getElementById("deviceSelect");
@@ -95,86 +107,95 @@ deviceList.forEach(id => {
   deviceSelect.appendChild(opt);
 });
 
-// Convert date+hour → Google serial number
-function toSerial(dateStr, hour) {
-  const d = new Date(dateStr + "T" + hour + ":00:00");
-  return (d.getTime() / 86400000) + 25569;
-}
+document.getElementById("info").innerHTML = "Devices: " + deviceList.join(", ");
 
-// Load files with optimized numeric filtering
+
+// ====================== LOAD FILES =======================
 async function loadFiles() {
 
   const deviceId = deviceSelect.value;
-  const dateVal = document.getElementById("datePicker").value;
-  const hourVal = document.getElementById("hourSelect").value;
+  const dateVal  = document.getElementById("datePicker").value;
+  const hourVal  = document.getElementById("hourSelect").value;
 
-  const list = document.getElementById("fileList");
+  const fileList = document.getElementById("fileList");
 
   if (!deviceId || !dateVal || !hourVal) {
-    list.innerHTML = "<p>Select device, date, and hour.</p>";
+    fileList.innerHTML =
+      "<p>Select device, date, and hour.</p>";
     return;
   }
 
-  // Serial range for selected hour
-  const startSerial = toSerial(dateVal, hourVal);
-  const endSerial   = startSerial + (1 / 24); // +1 hour
-
-  list.innerHTML = "<p>Loading...</p>";
-
-  // SQL numeric filtering
+  // SQL → retrieve only ONE DAY of data
   const query = `
     select *
     where G = '${deviceId}'
-    and A >= ${startSerial}
-    and A < ${endSerial}
+    and A >= date '${dateVal}'
+    and A < date '${dateVal}' + 1
   `;
 
   const url = SHEET_URL + "&tq=" + encodeURIComponent(query);
 
-  const resp = await fetch(url);
-  const txt  = await resp.text();
-  const json = JSON.parse(txt.substring(47).slice(0, -2));
+  fileList.innerHTML = "<p>Loading...</p>";
 
-  const rows = (json.table.rows || []).map(r => r.c);
+  try {
+    const resp = await fetch(url);
+    const txt = await resp.text();
+    const json = JSON.parse(txt.substring(47).slice(0, -2));
+    let rows = (json.table.rows || []).map(r => r.c);
 
-  // Camera filtering
-  const filtered = rows.filter(r => {
-    const cam = r[4]?.v || "";
-    return cameraFilter === "all" || cam === String(cameraFilter);
-  });
+    // --------------- CAMERA FILTER ------------------
+    rows = rows.filter(r => {
+      const cam = r[4]?.v || "";
+      return (cameraFilter === "all" || cam === String(cameraFilter));
+    });
 
-  if (filtered.length === 0) {
-    list.innerHTML = "<p>No videos found.</p>";
-    return;
+    // --------------- HOUR FILTER (JS) ---------------
+    rows = rows.filter(r => {
+      const t = r[0]?.f;
+      if (!t) return false;
+      const hour = parseInt(t.split(" ")[1].split(":")[0], 10);
+      return hour === parseInt(hourVal, 10);
+    });
+
+    if (rows.length === 0) {
+      fileList.innerHTML = "<p>No videos found.</p>";
+      return;
+    }
+
+    // --------------- RENDER LIST ------------------
+    fileList.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "device-title";
+    title.textContent = "Device " + deviceId;
+    fileList.appendChild(title);
+
+    rows.forEach(r => {
+      const div = document.createElement("div");
+      div.className = "file";
+      div.textContent = r[2].v;  // Filename
+      div.onclick = () => playVideo(r);
+      fileList.appendChild(div);
+    });
+
+  } catch (e) {
+    fileList.innerHTML =
+      "<p style='color:red;'>Error loading data: " + e + "</p>";
   }
-
-  // Render list
-  list.innerHTML = "";
-  const title = document.createElement("div");
-  title.className = "device-title";
-  title.textContent = `Device ${deviceId}`;
-  list.appendChild(title);
-
-  filtered.forEach(r => {
-    const div = document.createElement("div");
-    div.className = "file";
-    div.textContent = r[2].v; // filename
-    div.onclick = () => playVideo(r);
-    list.appendChild(div);
-  });
 }
 
+// ====================== PLAY VIDEO =======================
 function playVideo(row) {
   const deviceId = row[6].v;
   const filename = row[2].v;
 
+  // Send custom command to camera via Web App
   fetch(`${WEBAPP_URL}?deviceId=${deviceId}&filename=${filename}`);
 
+  // Play video
   document.getElementById("player").src =
     MEDIA_BASE_URL + filename;
 }
 
 </script>
-
 </body>
 </html>
