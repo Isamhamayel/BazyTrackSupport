@@ -166,7 +166,7 @@ async function loadFiles() {
     return;
   }
 
-  const sql = `select * where G=${deviceId} order by A desc`;
+  const sql = `select * where G='${deviceId}' order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
   fileList.innerHTML = "جارِ التحميل...";
@@ -183,8 +183,11 @@ async function loadFiles() {
       const cols = r.c;
       if (!cols) return;
 
-      const raw = cols[0].f || cols[0].v;
-      const [mdy, time] = raw.split(" ");
+      // Always formatted date
+      const rawDate = cols[0].f;
+      if (!rawDate) return;
+
+      const [mdy, time] = rawDate.split(" ");
       const [M, D, Y] = mdy.split("/");
 
       const yyyy_mm_dd = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
@@ -193,14 +196,14 @@ async function loadFiles() {
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
 
-      const camVal = cols[4]?.v || cols[4]?.f;
+      const camVal = cols[4]?.v;
       if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
       out.push({
         time,
         filename: cols[2].v,
-        imei: cols[1].v || cols[1].f,
-        deviceId: cols[6].v
+        imei: cols[1].f || cols[1].v,
+        deviceId: cols[6].f || cols[6].v
       });
     });
 
