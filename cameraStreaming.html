@@ -120,41 +120,44 @@ async function loadFiles() {
   const fileList = document.getElementById("fileList");
 
   if (!deviceId || !dateVal || !hourVal) {
-    fileList.innerHTML =
-      "<p>Select device, date, and hour.</p>";
+    fileList.innerHTML = "<p>Select device, date, and hour.</p>";
     return;
   }
 
-  // SQL → retrieve only ONE DAY of data
+  // Convert Amman hour → UTC hour
+  const ammanHour = parseInt(hourVal, 10);
+  const utcHour   = (ammanHour - 3 + 24) % 24;
+
+  // Build UTC date string
+  const startUTC = `${dateVal}T${utcHour.toString().padStart(2,'0')}:00:00`;
+  const endUTC   = `${dateVal}T${((utcHour+1)%24).toString().padStart(2,'0')}:00:00`;
+
+  // Convert to serial numbers
+  const startSerial = (new Date(startUTC).getTime() / 86400000) + 25569;
+  const endSerial   = (new Date(endUTC).getTime() / 86400000) + 25569;
+
+  // SQL: fast numeric filtering
   const query = `
     select *
     where G = '${deviceId}'
-    and A >= date '${dateVal}'
-    and A < date '${dateVal}' + 1
+    and A >= ${startSerial}
+    and A < ${endSerial}
   `;
 
   const url = SHEET_URL + "&tq=" + encodeURIComponent(query);
-
   fileList.innerHTML = "<p>Loading...</p>";
 
   try {
     const resp = await fetch(url);
-    const txt = await resp.text();
+    const txt  = await resp.text();
     const json = JSON.parse(txt.substring(47).slice(0, -2));
+
     let rows = (json.table.rows || []).map(r => r.c);
 
-    // --------------- CAMERA FILTER ------------------
+    // Camera filter
     rows = rows.filter(r => {
       const cam = r[4]?.v || "";
       return (cameraFilter === "all" || cam === String(cameraFilter));
-    });
-
-    // --------------- HOUR FILTER (JS) ---------------
-    rows = rows.filter(r => {
-      const t = r[0]?.f;
-      if (!t) return false;
-      const hour = parseInt(t.split(" ")[1].split(":")[0], 10);
-      return hour === parseInt(hourVal, 10);
     });
 
     if (rows.length === 0) {
@@ -162,24 +165,18 @@ async function loadFiles() {
       return;
     }
 
-    // --------------- RENDER LIST ------------------
+    // Render results
     fileList.innerHTML = "";
-    const title = document.createElement("div");
-    title.className = "device-title";
-    title.textContent = "Device " + deviceId;
-    fileList.appendChild(title);
-
     rows.forEach(r => {
       const div = document.createElement("div");
       div.className = "file";
-      div.textContent = r[2].v;  // Filename
+      div.textContent = r[2].v;
       div.onclick = () => playVideo(r);
       fileList.appendChild(div);
     });
 
-  } catch (e) {
-    fileList.innerHTML =
-      "<p style='color:red;'>Error loading data: " + e + "</p>";
+  } catch (err) {
+    fileList.innerHTML = "<p style='color:red;'>Error: " + err + "</p>";
   }
 }
 
