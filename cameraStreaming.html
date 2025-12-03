@@ -217,8 +217,24 @@ async function loadFiles() {
 /* ============================================================
    PLAY VIDEO (HLS)
 ============================================================ */
+  function stopPlayer() {
+  const video = document.getElementById("player");
+
+  if (window.hls) {
+    try { window.hls.destroy(); } catch(e) {}
+    window.hls = null;
+  }
+
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+}
+
 function playVideo(fname, deviceId, imei) {
 
+   // ALWAYS STOP OLD STREAM FIRST
+  stopPlayer();
+  
   // 1) Send command to camera
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
