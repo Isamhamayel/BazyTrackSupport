@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BazyGo – Video Playback</title>
+
+  <style>
+    body { font-family: Arial; background:#f7f7f7; padding:20px; }
+    .file { padding:10px; margin-bottom:5px; background:white; border-radius:5px; border:1px solid #ddd; cursor:pointer; }
+    .file:hover { background:#eee; }
+    .device-title { margin-top:25px; font-weight:bold; font-size:18px; }
+    .cam-btn { padding:6px 12px; border:1px solid #888; margin-right:6px; border-radius:4px; cursor:pointer; display:inline-block; }
+    .cam-btn.active { background:#007bff; color:white; border-color:#0056b3; }
+  </style>
+</head>
+
+<body>
+
+<h2>📹 Video Playback</h2>
+
+<!-- Camera filter -->
+<div>
+  <span id="cam1" class="cam-btn active" onclick="setCamera(1)">Camera 1</span>
+  <span id="cam2" class="cam-btn" onclick="setCamera(2)">Camera 2</span>
+  <span id="camAll" class="cam-btn" onclick="setCamera('all')">All</span>
+</div>
+
+<p id="info"></p>
+
+<div id="fileList">Loading...</div>
+
+<h3>Player</h3>
+<video id="player" width="700" controls></video>
+
+<script>
+// ------------------ CONFIG ------------------
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM/gviz/tq?tqx=out:json";
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec"; // your Google Script URL
+
+let cameraFilter = 1; // default camera
+
+function setCamera(cam) {
+  cameraFilter = cam;
+  document.getElementById("cam1").classList.toggle("active", cam === 1);
+  document.getElementById("cam2").classList.toggle("active", cam === 2);
+  document.getElementById("camAll").classList.toggle("active", cam === "all");
+  loadFiles(); // reload
+}
+
+// ----------------- URL PARAMETERS ------------------
+const urlParams = new URLSearchParams(window.location.search);
+const rawParams = urlParams.get("params");
+const selectedDate = urlParams.get("date"); // YYYY-MM-DD
+
+const decodedJSON = JSON.parse(decodeURIComponent(rawParams));
+const deviceList = decodedJSON["ds16.devices"].split(",").map(x => x.trim());
+
+// ----------------- DISPLAY INFO ------------------
+document.getElementById("info").innerHTML =
+  `Date: <b>${selectedDate}</b><br>
+   Devices: <b>${deviceList.join(", ")}</b>`;
+
+// ----------------- HELPERS ------------------
+function sheetDateToYMD(cell) {
+  if (!cell || cell.v === null) return "";
+
+  // Convert Google serial date to JS date
+  const jsDate = new Date((cell.v - 25569) * 86400000);
+
+  // Adjust for Amman Time (UTC+3)
+  jsDate.setHours(jsDate.getHours() + 3);
+
+  return jsDate.toISOString().split("T")[0]; // YYYY-MM-DD
+}
+
+function value(c){ return c ? (c.f || c.v) : ""; }
+
+// ----------------- LOAD FILES ------------------
+async function loadFiles() {
+
+  const res = await fetch(SHEET_URL);
+  const text = await res.text();
+  const json = JSON.parse(text.substring(47).slice(0,-2));
+
+  const rows = json.table.rows.map(r => r.c);
+
+  const listDiv = document.getElementById("fileList");
+  listDiv.innerHTML = "";
+
+  // Filter by:
+  // selectedDate (col A = index 0)
+  // deviceId     (col G = index 6)
+  // camera       (col E = index 4)
+  const filtered = rows.filter(row => {
+
+    const rowDate = sheetDateToYMD(row[0]);     // Amman time
+    const rowDevice = String(row[6].v);         // Device ID
+    const rowCamera = String(row[4].v);         // Camera number
+
+    const matchDate = (rowDate === selectedDate);
+    const matchDevice = deviceList.includes(rowDevice);
+    const matchCamera = (cameraFilter === "all") || (rowCamera === String(cameraFilter));
+
+    return matchDate && matchDevice && matchCamera;
+  });
+
+  if (!filtered.length) {
+    listDiv.innerHTML = "<p>No videos for this selection.</p>";
+    return;
+  }
+
+  // Group by device ID
+  const grouped = {};
+  filtered.forEach(r => {
+    const dev = String(r[6].v);
+    if (!grouped[dev]) grouped[dev] = [];
+    grouped[dev].push(r);
+  });
+
+  // Render
+  for (const devId of Object.keys(grouped)) {
+    const title = document.createElement("div");
+    title.className = "device-title";
+    title.textContent = "📌 Device ID: " + devId;
+    listDiv.appendChild(title);
+
+    grouped[devId].forEach(row => {
+      const div = document.createElement("div");
+      div.className = "file";
+      div.textContent = row[2].v; // filename
+      div.onclick = () => playVideo(row);
+      listDiv.appendChild(div);
+    });
+  }
+}
+
+// ----------------- PLAY VIDEO ------------------
+function playVideo(row) {
+  const deviceId = row[6].v;
+  const filename = row[2].v;
+  const fileUrl = row[2].v.includes(".ts") 
+      ? "YOUR_TS_BASE_URL/" + row[2].v 
+      : row[2].v;
+
+  // send command to Google Script
+  fetch(`${WEBAPP_URL}?deviceId=${deviceId}&filename=${filename}`);
+
+  // play file
+  document.getElementById("player").src = fileUrl;
+}
+
+loadFiles();
+</script>
+
+</body>
+</html>
