@@ -211,7 +211,7 @@ async function loadFiles() {
       const div = document.createElement("div");
       div.className = "file";
       div.innerHTML =
-        `<div class="time-label">${v.time}</div>${v.filename}`;
+        `<div class="time-label">${v.filename}</div>${v.time}`;
       div.onclick = () =>
         playVideo(v.filename, v.deviceId, v.imei);
       fileList.appendChild(div);
