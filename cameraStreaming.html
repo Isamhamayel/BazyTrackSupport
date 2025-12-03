@@ -2,169 +2,158 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>BazyGo – Video Playback</title>
-
+<title>BazyGo Video Player</title>
 <style>
-  body { font-family: Arial; background:#f7f7f7; padding:20px; }
-  .file { padding:10px; margin-bottom:5px; background:white; border-radius:5px;
-          border:1px solid #ddd; cursor:pointer; }
-  .file:hover { background:#eee; }
-  .device-title { margin-top:25px; font-weight:bold; font-size:18px; }
-  .cam-btn { padding:6px 12px; border:1px solid #888; margin-right:6px;
-             border-radius:4px; cursor:pointer; display:inline-block; }
-  .cam-btn.active { background:#007bff; color:white; border-color:#0056b3; }
-  select, input[type="date"] { padding:4px 6px; margin-right:8px; }
+body { font-family: Arial; }
+.file { background:#f2f2f2; padding:8px; margin:6px 0; cursor:pointer; border-radius:4px; }
+.file:hover { background:#e0e0e0; }
+.cam-btn { padding:4px 10px; border:1px solid #888; margin-right:5px; cursor:pointer; }
+.cam-btn.active { background:#2196F3; color:white; }
 </style>
-
 </head>
 <body>
 
-<h2>📹 Camera Playback</h2>
+<h3>Camera Streaming</h3>
 
-<p>
-  <label><b>Device:</b></label>
-  <select id="deviceSelect" onchange="loadFiles()">
-    <option value="">-- Select device --</option>
-  </select>
+<label>Device:</label>
+<select id="deviceSelect" onchange="loadFiles()"></select>
 
-  <label><b>Date:</b></label>
-  <input type="date" id="datePicker" onchange="loadFiles()" />
+<label>Date:</label>
+<input type="date" id="datePicker" onchange="loadFiles()">
 
-  <label><b>Hour:</b></label>
-  <select id="hourSelect" onchange="loadFiles()">
-    <option value="">-- Hour --</option>
-  </select>
-</p>
+<label>Hour:</label>
+<select id="hourPicker" onchange="loadFiles()"></select>
 
 <div>
-  <span id="cam1" class="cam-btn active" onclick="setCamera(1)">Camera 1</span>
-  <span id="cam2" class="cam-btn" onclick="setCamera(2)">Camera 2</span>
-  <span id="camAll" class="cam-btn" onclick="setCamera('all')">All</span>
+  <span id="c1" class="cam-btn active" onclick="setCam(1)">Camera 1</span>
+  <span id="c2" class="cam-btn" onclick="setCam(2)">Camera 2</span>
+  <span id="cAll" class="cam-btn" onclick="setCam('all')">All</span>
 </div>
 
-<p id="info"></p>
+<hr>
 
-<div id="fileList"><i>Select device, date, and hour.</i></div>
+<div id="fileList">Select filters.</div>
 
-<h3>Player</h3>
-<video id="player" width="700" controls></video>
+<video id="player" width="640" controls></video>
 
 <script>
 
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-
-const WEBAPP_URL = "YOUR_WEBAPP_URL";
-const MEDIA_BASE_URL = "YOUR_MEDIA_BASE_URL";
-
 let cameraFilter = 1;
 
-// Hour dropdown
-const hourSelect = document.getElementById("hourSelect");
-for (let h = 0; h < 24; h++) {
-  const hh = h.toString().padStart(2,'0');
+// Populate hours
+const hourPicker = document.getElementById("hourPicker");
+for (let h=0; h<24; h++){
   const opt = document.createElement("option");
-  opt.value = hh;
-  opt.textContent = hh + ":00";
-  hourSelect.appendChild(opt);
+  opt.value = h.toString().padStart(2,'0');
+  opt.textContent = h.toString().padStart(2,'0')+":00";
+  hourPicker.appendChild(opt);
 }
 
-// Camera selectors
-function setCamera(cam) {
-  cameraFilter = cam;
-  document.getElementById("cam1").classList.toggle("active", cam === 1);
-  document.getElementById("cam2").classList.toggle("active", cam === 2);
-  document.getElementById("camAll").classList.toggle("active", cam === "all");
-  loadFiles();
-}
-
-// Device list from params
-const urlParams = new URLSearchParams(window.location.search);
-const rawParams = urlParams.get("params");
-const decoded = rawParams ? JSON.parse(decodeURIComponent(rawParams)) : {};
-
-const deviceList = decoded["ds16.devices"]
-    ?.split(",")
-    ?.map(v => v.trim()) || [];
+// Load device list from URL parameter
+const params = new URLSearchParams(window.location.search);
+const devicesJSON = params.get("params");
+const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
+const deviceList = decoded["ds16.devices"]?.split(",") || [];
 
 const deviceSelect = document.getElementById("deviceSelect");
-deviceList.forEach(id => {
+deviceList.forEach(id=>{
   const opt = document.createElement("option");
-  opt.value = id;
-  opt.textContent = "Device " + id;
+  opt.value=id.trim();
+  opt.textContent="Device "+id.trim();
   deviceSelect.appendChild(opt);
 });
 
-// MAIN LOAD FUNCTION
-async function loadFiles() {
-
-  const deviceId = deviceSelect.value;
-  const dateVal  = document.getElementById("datePicker").value;
-  const hourVal  = document.getElementById("hourSelect").value;
-
-  const fileList = document.getElementById("fileList");
-
-  if (!deviceId || !dateVal || !hourVal) {
-    fileList.innerHTML = "<p>Select device, date, and hour.</p>";
-    return;
-  }
-
-  // Query only by DEVICE — FAST & ALWAYS WORKS
-  const query = `select * where G = ${deviceId} order by A desc`;
-  const url = SHEET_URL + "&tq=" + encodeURIComponent(query);
-
-  fileList.innerHTML = "<p>Loading...</p>";
-
-  const resp = await fetch(url);
-  const txt  = await resp.text();
-  const json = JSON.parse(txt.substring(47).slice(0,-2));
-
-  let rows = (json.table.rows || []).map(r => r.c);
-
-  // Filter by camera
-  rows = rows.filter(r => {
-    const cam = String(r[4]?.v);
-    return cameraFilter === "all" || cam === String(cameraFilter);
-  });
-
-  // Filter by date + hour (Amman time)
-  rows = rows.filter(r => {
-    const dtString = r[0]?.f;          // "12/3/2025 12:08:01"
-    if (!dtString) return false;
-
-    const dt = new Date(dtString.replace(" ", "T")); // convert to JS Date
-
-    // Convert to Amman time manually: add +3 hours
-    const amman = new Date(dt.getTime() + 3*3600000);
-
-    const yyyy = amman.toISOString().substring(0,10);
-    const hh   = amman.getHours().toString().padStart(2,'0');
-
-    return yyyy === dateVal && hh === hourVal;
-  });
-
-  if (rows.length === 0) {
-    fileList.innerHTML = "<p>No videos found.</p>";
-    return;
-  }
-
-  // Render file list
-  fileList.innerHTML = "";
-  rows.forEach(r => {
-    const div = document.createElement("div");
-    div.className = "file";
-    div.textContent = r[2].v;
-    div.onclick = () => playVideo(r);
-    fileList.appendChild(div);
-  });
+// Camera filter
+function setCam(c){
+  cameraFilter = c;
+  document.getElementById("c1").classList.toggle("active", c===1);
+  document.getElementById("c2").classList.toggle("active", c===2);
+  document.getElementById("cAll").classList.toggle("active", c==="all");
+  loadFiles();
 }
 
-function playVideo(row) {
-  const deviceId = row[6].v;
-  const filename = row[2].v;
+async function loadFiles(){
 
-  fetch(`${WEBAPP_URL}?deviceId=${deviceId}&filename=${filename}`);
-  document.getElementById("player").src = MEDIA_BASE_URL + filename;
+  const deviceId = deviceSelect.value;
+  const dateSel = document.getElementById("datePicker").value;
+  const hourSel = document.getElementById("hourPicker").value;
+
+  if(!deviceId || !dateSel || !hourSel){
+    document.getElementById("fileList").innerHTML="Select all filters.";
+    return;
+  }
+
+  // Only filter by device in SQL
+  const query = `select * where G = ${deviceId} order by A desc`;
+  const url   = SHEET_URL + "&tq=" + encodeURIComponent(query);
+
+  const res  = await fetch(url);
+  const text = await res.text();
+  const json = JSON.parse(text.substring(47).slice(0,-2));
+
+  let rows = json.table.rows || [];
+
+  // Now filter locally based on real Google Date()
+  let finalRows = rows.filter(r => {
+
+    const cols = r.c;
+    if(!cols) return false;
+
+    const dateObj = parseGoogleDate(cols[0].v);
+    if(!dateObj) return false;
+
+    // Convert to Jordan time (UTC+3)
+    const amman = new Date(dateObj.getTime() + 3*3600000);
+
+    const y = amman.toISOString().slice(0,10);
+    const h = amman.getHours().toString().padStart(2,'0');
+
+    if(y !== dateSel) return false;
+    if(h !== hourSel) return false;
+
+    const cam = cols[4]?.v;
+    if(cameraFilter!=="all" && String(cam)!==String(cameraFilter)) return false;
+
+    return true;
+  });
+
+  if(finalRows.length===0){
+    document.getElementById("fileList").innerHTML="No videos found.";
+    return;
+  }
+
+  const listDiv = document.getElementById("fileList");
+  listDiv.innerHTML="";
+
+  finalRows.forEach(r=>{
+    const filename = r.c[2].v;
+    const div = document.createElement("div");
+    div.className="file";
+    div.textContent = filename;
+    div.onclick = ()=> playVideo(filename);
+    listDiv.appendChild(div);
+  });
+
+}
+
+function parseGoogleDate(str){
+  // Convert Date(2025,10,26,8,59,52)
+  const match = /Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/.exec(str);
+  if(!match) return null;
+  return new Date(
+    Number(match[1]), // year
+    Number(match[2]), // month
+    Number(match[3]), // day
+    Number(match[4]), // hour
+    Number(match[5]), // minute
+    Number(match[6])  // second
+  );
+}
+
+function playVideo(filename){
+  document.getElementById("player").src = "YOUR_MEDIA_URL/"+filename;
 }
 
 </script>
