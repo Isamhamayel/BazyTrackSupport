@@ -230,7 +230,7 @@ function playVideo(fname, deviceId, imei) {
 
   // 1) Send command
   fetch(
-    `${WEBAPP_URL}?type=playback&deviceId=${deviceId}&filename=${fname}`
+    `${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`
   );
 
   // 2) HLS streaming
