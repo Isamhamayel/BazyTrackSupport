@@ -187,7 +187,10 @@ async function loadFiles() {
 
       // Extract hour
       const hh = String(d.getHours()).padStart(2, "0");
-
+      console.log("date from sheet",yy_mm_dd);
+       console.log("hours from sheet",hh);
+       console.log("date =",dateSel);
+      console.log("hours = ",hourSel);
       // Apply filters
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
