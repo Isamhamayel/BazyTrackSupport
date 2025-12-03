@@ -171,6 +171,7 @@ async function loadFiles() {
       if (!formatted) return;
 
       // split string
+      console.log("date as is = ",formatted);
       const [mdy, time] = formatted.split(" "); // ["6/11/2025", "13:32:10"]
       const [M, D, Y] = mdy.split("/");
 
