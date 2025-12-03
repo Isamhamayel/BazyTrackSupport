@@ -5,84 +5,43 @@
 <title>BazyGo – Video Player</title>
 
 <style>
-  body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f2f2f2;
-  }
-
-  .container {
-    display: flex;
-    height: 100vh;
-  }
+  body { margin:0; font-family:Arial; background:#f2f2f2; }
+  .container { display:flex; height:100vh; }
 
   .left {
-    width: 45%;
-    background: #ffffff;
-    border-right: 2px solid #ddd;
-    padding: 15px;
-    overflow-y: auto;
+    width:45%; background:white; border-right:2px solid #ddd;
+    padding:15px; overflow-y:auto; box-sizing:border-box;
   }
 
   .right {
-    width: 55%;
-    padding: 20px;
-    background: #f7f7f7;
-    box-sizing: border-box;
+    width:55%; padding:20px; box-sizing:border-box;
   }
 
   .file {
-    background: #f9f9f9;
-    padding: 8px 10px;
-    margin: 6px 0;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    cursor: pointer;
+    background:#f9f9f9; padding:10px; margin:6px 0;
+    border-radius:6px; border:1px solid #ddd; cursor:pointer;
   }
+  .file:hover { background:#ececec; }
 
-  .file:hover {
-    background: #ececec;
-  }
-
-  .time-label {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 2px;
-  }
+  .time-label { font-size:12px; color:#666; }
 
   .cam-btn {
-    padding: 4px 10px;
-    border: 1px solid #999;
-    margin-right: 6px;
-    border-radius: 4px;
-    cursor: pointer;
+    padding:4px 10px; border:1px solid #999; margin-right:6px; border-radius:4px;
+    cursor:pointer;
   }
+  .cam-btn.active { background:#2196F3; color:white; }
 
-  .cam-btn.active {
-    background: #2196F3;
-    color: white;
-  }
-
-  .controls select,
-  .controls input[type="date"] {
-    padding: 4px 6px;
-    margin-right: 8px;
-    margin-bottom: 8px;
-  }
-
-  #debug {
-    margin-top: 10px;
-    font-size: 11px;
-    color: #999;
+  .controls select, .controls input[type="date"] {
+    padding:5px; margin-right:8px; margin-bottom:10px;
   }
 </style>
-
 </head>
+
 <body>
 
 <div class="container">
 
-  <!-- LEFT: FILE LIST -->
+  <!-- LEFT SIDE -->
   <div class="left">
     <h3>📁 قائمة الفيديوهات</h3>
 
@@ -105,39 +64,33 @@
 
     <hr>
 
-    <div id="fileList"><i>اختر الجهاز، التاريخ، والساعة...</i></div>
-    <div id="debug"></div>
+    <div id="fileList"><i>اختر الفلاتر...</i></div>
   </div>
 
-  <!-- RIGHT: PLAYER -->
+  <!-- RIGHT SIDE -->
   <div class="right">
     <h3>🎥 المشغّل</h3>
-    <video id="player" width="100%" height="480" controls style="background:#000;"></video>
+    <video id="player" width="100%" height="480" controls style="background:black;"></video>
   </div>
 
 </div>
 
 <script>
-// إعدادات عامة
-var SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
-var SHEET_URL = "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:json";
+const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
 
-// غيّر هذا لاحقاً لرابط الميديا
-var MEDIA_BASE_URL = "YOUR_MEDIA_URL/"; 
+let cameraFilter = 1;
 
-var cameraFilter = 1;
-
-// تعبئة ساعات اليوم
-var hourPicker = document.getElementById("hourPicker");
-for (var h = 0; h < 24; h++) {
-  var hh = h < 10 ? "0" + h : "" + h;
-  var opt = document.createElement("option");
+// Fill hours
+const hourPicker = document.getElementById("hourPicker");
+for (let h = 0; h < 24; h++) {
+  const hh = h.toString().padStart(2, "0");
+  const opt = document.createElement("option");
   opt.value = hh;
   opt.textContent = hh + ":00";
   hourPicker.appendChild(opt);
 }
 
-// أزرار الكاميرات
 function setCam(c) {
   cameraFilter = c;
   document.getElementById("c1").classList.toggle("active", c === 1);
@@ -146,119 +99,86 @@ function setCam(c) {
   loadFiles();
 }
 
-// قراءة قائمة الأجهزة من params
-var params = new URLSearchParams(window.location.search);
-var devicesJSON = params.get("params");
-var decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
-var deviceList = decoded["ds16.devices"] ? decoded["ds16.devices"].split(",") : [];
+// Load device list from params
+const params = new URLSearchParams(window.location.search);
+const devicesJSON = params.get("params");
+const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
+const deviceList = decoded["ds16.devices"] ? decoded["ds16.devices"].split(",") : [];
 
-var deviceSelect = document.getElementById("deviceSelect");
-for (var i = 0; i < deviceList.length; i++) {
-  var id = deviceList[i].trim();
-  if (!id) continue;
-  var opt = document.createElement("option");
+const deviceSelect = document.getElementById("deviceSelect");
+deviceList.forEach(id => {
+  id = id.trim();
+  if (!id) return;
+  const opt = document.createElement("option");
   opt.value = id;
   opt.textContent = "Device " + id;
   deviceSelect.appendChild(opt);
-}
+});
 
-// الوظيفة الرئيسية
+// MAIN FUNCTION
 async function loadFiles() {
-  var deviceId = deviceSelect.value;
-  var dateSel = document.getElementById("datePicker").value;   // "2025-11-26"
-  var hourSel = document.getElementById("hourPicker").value;   // "09" مثلاً
 
-  var fileList = document.getElementById("fileList");
-  var debugDiv = document.getElementById("debug");
+  const deviceId = deviceSelect.value;
+  const dateSel = document.getElementById("datePicker").value; // yyyy-MM-dd
+  const hourSel = document.getElementById("hourPicker").value; // "09"
 
   if (!deviceId || !dateSel || !hourSel) {
-    fileList.innerHTML = "اختر الجهاز، التاريخ، والساعة.";
-    debugDiv.innerHTML = "";
+    document.getElementById("fileList").innerHTML = "اختر كل الفلاتر.";
     return;
   }
 
-  // استعلام بسيط: حسب الجهاز فقط
-  var sql = "select * where G = " + deviceId + " order by A desc";
-  var url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
+  // ONLY filter by device in SQL
+  const sql = `select * where G=${deviceId} order by A desc`;
+  const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
-  fileList.innerHTML = "جارِ التحميل...";
-  debugDiv.innerHTML = "";
+  const res = await fetch(url);
+  const txt = await res.text();
+  const json = JSON.parse(txt.substring(47).slice(0, -2));
 
-  try {
-    var res = await fetch(url);
-    var text = await res.text();
-    var json = JSON.parse(text.substring(47).slice(0, -2));
+  const rows = json.table.rows || [];
+  const out = [];
 
-    var rows = json.table.rows || [];
-    var total = rows.length;
-    var matched = 0;
+  rows.forEach(r => {
+    const cols = r.c;
 
-    var result = [];
+    // TRUE Amman time text
+    const raw = cols[0].f; // "11/26/2025 9:03:52"
 
-    for (var r = 0; r < rows.length; r++) {
-      var cols = rows[r].c;
-      if (!cols) continue;
+    const [mdy, time] = raw.split(" "); // ["11/26/2025", "9:03:52"]
+    const [M, D, Y] = mdy.split("/");
+    const yyyy_mm_dd = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
 
-      // نستخدم f لأنه يطابق وقت عمّان كما تراه في الشيت
-      var f = cols[0].f; // "11/26/2025 9:03:52"
-      if (!f) continue;
+    const hh = time.split(":")[0].padStart(2,"0");
 
-      var dt = new Date(f.replace(" ", "T")); // المتصفح يقرأها كـ local time
-      if (isNaN(dt.getTime())) continue;
+    // match
+    if (yyyy_mm_dd !== dateSel) return;
+    if (hh !== hourSel) return;
 
-      var yyyy = dt.getFullYear();
-      var mm = (dt.getMonth() + 1).toString().padStart(2, '0');
-      var dd = dt.getDate().toString().padStart(2, '0');
-      var hh = dt.getHours().toString().padStart(2, '0');
+    const camVal = cols[4]?.v;
+    if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
-      var dateStr = yyyy + "-" + mm + "-" + dd;
-      if (dateStr !== dateSel) continue;
-      if (hh !== hourSel) continue;
+    out.push({ time, filename: cols[2].v });
+  });
 
-      var camVal = cols[4] ? cols[4].v : null;
-      if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) continue;
-
-      rows[r]._localTime = dt;
-      result.push(rows[r]);
-    }
-
-    matched = result.length;
-
-    if (!matched) {
-      fileList.innerHTML = "لا يوجد ملفات في هذه الساعة.";
-      debugDiv.innerHTML = "Total rows: " + total + ", matched: 0";
-      return;
-    }
-
-    fileList.innerHTML = "";
-    for (var j = 0; j < result.length; j++) {
-      var row = result[j];
-      var c = row.c;
-      var filename = c[2].v;
-      var t = row._localTime;
-      var timeStr = t.toTimeString().substr(0, 8); // HH:MM:SS
-
-      var div = document.createElement("div");
-      div.className = "file";
-      div.innerHTML = '<div class="time-label">' + timeStr + '</div>' + filename;
-      (function(fname) {
-        div.onclick = function() { playVideo(fname); };
-      })(filename);
-      fileList.appendChild(div);
-    }
-
-    debugDiv.innerHTML = "Total rows: " + total + ", matched: " + matched;
-
-  } catch (err) {
-    fileList.innerHTML = "حدث خطأ في تحميل البيانات.";
-    debugDiv.innerHTML = "Error: " + err;
+  const list = document.getElementById("fileList");
+  if (out.length === 0) {
+    list.innerHTML = "لا يوجد ملفات في هذه الساعة.";
+    return;
   }
+
+  list.innerHTML = "";
+  out.forEach(v => {
+    const div = document.createElement("div");
+    div.className = "file";
+    div.innerHTML = `<div class="time-label">${v.time}</div>${v.filename}`;
+    div.onclick = () => playVideo(v.filename);
+    list.appendChild(div);
+  });
 }
 
-function playVideo(filename) {
-  document.getElementById("player").src = MEDIA_BASE_URL + filename;
+function playVideo(fname) {
+  document.getElementById("player").src = "YOUR_MEDIA_URL/" + fname;
 }
-
 </script>
 
 </body>
