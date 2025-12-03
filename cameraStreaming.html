@@ -53,6 +53,7 @@
 
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+
 const WEBAPP_URL = "YOUR_WEBAPP_URL";
 const MEDIA_BASE_URL = "YOUR_MEDIA_BASE_URL";
 
@@ -68,7 +69,7 @@ for (let h = 0; h < 24; h++) {
   hourSelect.appendChild(opt);
 }
 
-// Camera buttons
+// Camera selectors
 function setCamera(cam) {
   cameraFilter = cam;
   document.getElementById("cam1").classList.toggle("active", cam === 1);
@@ -80,8 +81,11 @@ function setCamera(cam) {
 // Device list from params
 const urlParams = new URLSearchParams(window.location.search);
 const rawParams = urlParams.get("params");
-const decoded = JSON.parse(decodeURIComponent(rawParams));
-const deviceList = decoded["ds16.devices"].split(",").map(x => x.trim());
+const decoded = rawParams ? JSON.parse(decodeURIComponent(rawParams)) : {};
+
+const deviceList = decoded["ds16.devices"]
+    ?.split(",")
+    ?.map(v => v.trim()) || [];
 
 const deviceSelect = document.getElementById("deviceSelect");
 deviceList.forEach(id => {
@@ -105,7 +109,7 @@ async function loadFiles() {
     return;
   }
 
-  // Query only device (FAST AND CORRECT)
+  // Query only by DEVICE — FAST & ALWAYS WORKS
   const query = `select * where G = ${deviceId} order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(query);
 
@@ -113,23 +117,30 @@ async function loadFiles() {
 
   const resp = await fetch(url);
   const txt  = await resp.text();
-  const json = JSON.parse(txt.substring(47).slice(0, -2));
+  const json = JSON.parse(txt.substring(47).slice(0,-2));
+
   let rows = (json.table.rows || []).map(r => r.c);
 
   // Filter by camera
   rows = rows.filter(r => {
-    const cam = String(r[4].v);
+    const cam = String(r[4]?.v);
     return cameraFilter === "all" || cam === String(cameraFilter);
   });
 
-  // Convert r[0].f into real Date (Amman time)
+  // Filter by date + hour (Amman time)
   rows = rows.filter(r => {
-    const dt = new Date(r[0].f.replace(" ", "T"));
-    const amman = new Date(dt.getTime() + (3 * 3600000)); // UTC+3
+    const dtString = r[0]?.f;          // "12/3/2025 12:08:01"
+    if (!dtString) return false;
+
+    const dt = new Date(dtString.replace(" ", "T")); // convert to JS Date
+
+    // Convert to Amman time manually: add +3 hours
+    const amman = new Date(dt.getTime() + 3*3600000);
+
     const yyyy = amman.toISOString().substring(0,10);
     const hh   = amman.getHours().toString().padStart(2,'0');
 
-    return (yyyy === dateVal && hh === hourVal);
+    return yyyy === dateVal && hh === hourVal;
   });
 
   if (rows.length === 0) {
@@ -137,7 +148,7 @@ async function loadFiles() {
     return;
   }
 
-  // Render rows
+  // Render file list
   fileList.innerHTML = "";
   rows.forEach(r => {
     const div = document.createElement("div");
