@@ -243,7 +243,7 @@ function playVideo(fname, deviceId, imei) {
     .catch(err => console.error("GS Error:", err));
 
   // 2) Play FLV live stream
-  const stream = STREAM_URL + imei + ".flv";
+  const stream = STREAM_URL + imei + ".m3u8";
   document.getElementById("player").src = stream;
 }
 
