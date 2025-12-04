@@ -3,20 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <title>BazyGo – Video Player</title>
-
-<!-- MOBILE -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- HLS.js -->
+<!-- HLS.js for Android/PC -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
   * { box-sizing: border-box; }
   body { margin:0; font-family:Arial; background:#f2f2f2; }
 
-  /* ==========================================
-     MOBILE LAYOUT (default)
-     ========================================== */
+  /* MOBILE LAYOUT (default) */
   .page {
     display:flex;
     flex-direction:column;
@@ -65,7 +61,7 @@
   }
 
   .cam-buttons {
-    margin:6px 0 10px 0;
+    margin-bottom:10px;
   }
 
   .cam-btn {
@@ -76,7 +72,6 @@
     cursor:pointer;
     font-size:13px;
     display:inline-block;
-    margin-bottom:4px;
   }
   .cam-btn.active {
     background:#2196F3;
@@ -91,7 +86,6 @@
     border:1px solid #ddd;
     cursor:pointer;
   }
-
   .file:hover { background:#ececec; }
 
   .time-label {
@@ -100,14 +94,8 @@
     margin-bottom:4px;
   }
 
-  /* ==========================================
-     DESKTOP LAYOUT (≥768px)
-     ========================================== */
+  /* DESKTOP LAYOUT */
   @media (min-width: 768px) {
-
-    body {
-      direction: rtl;
-    }
 
     .page {
       flex-direction:row;
@@ -116,16 +104,15 @@
     .top-panel {
       flex:0 0 55%;
       height:100vh;
+      overflow-y:auto;
       border-left:2px solid #ddd;
       border-bottom:none;
       padding:20px;
-      overflow-y:auto;
     }
 
     .file-panel {
       flex:0 0 45%;
       height:100vh;
-      border-left:none;
       overflow-y:auto;
       padding:20px;
       background:white;
@@ -209,7 +196,7 @@ function setCam(c) {
   loadFiles();
 }
 
-/* Read devices from URL */
+/* Read devices from URL params */
 const params = new URLSearchParams(window.location.search);
 const devicesJSON = params.get("params");
 const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
@@ -255,20 +242,20 @@ async function loadFiles() {
       if (!c) return;
 
       const raw = c[0].f;
-      const [mdy, time] = raw.split(" ");
+      const [mdy, t] = raw.split(" ");
       const [M, D, Y] = mdy.split("/");
 
-      const yyyy_mm_dd = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
-      const hh = time.split(":")[0].padStart(2,"0");
+      const date = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
+      const hh = t.split(":")[0].padStart(2,"0");
 
-      if (yyyy_mm_dd !== dateSel) return;
+      if (date !== dateSel) return;
       if (hh !== hourSel) return;
 
-      const camVal = c[4]?.v;
-      if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
+      const cam = c[4]?.v;
+      if (cameraFilter !== "all" && String(cam) !== String(cameraFilter)) return;
 
       out.push({
-        time,
+        time: t,
         filename: c[2].v,
         imei: c[1].f,
         deviceId: c[6].v
@@ -282,11 +269,11 @@ async function loadFiles() {
 
     fileList.innerHTML = "";
     out.forEach(v => {
-      const div = document.createElement("div");
-      div.className = "file";
-      div.innerHTML = `<div class="time-label">${v.filename}</div>${v.time}`;
-      div.onclick = () => playVideo(v.filename, v.deviceId, v.imei);
-      fileList.appendChild(div);
+      const item = document.createElement("div");
+      item.className = "file";
+      item.innerHTML = `<div class="time-label">${v.filename}</div>${v.time}`;
+      item.onclick = () => playVideo(v.filename, v.deviceId, v.imei);
+      fileList.appendChild(item);
     });
 
   } catch (e) {
@@ -296,7 +283,7 @@ async function loadFiles() {
 }
 
 /* ============================================================
-   STREAM PLAYER
+   STREAM PLAYER (HLS)
 ============================================================ */
 function stopPlayer() {
   const video = document.getElementById("player");
@@ -310,36 +297,66 @@ function stopPlayer() {
 }
 
 function playVideo(fname, deviceId, imei) {
+
   stopPlayer();
 
+  // Tell camera to start streaming
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
-  const stream = `https://streaming.bazytrack.jo/live/0/${imei}.m3u8`;
-  const video = document.getElementById("player");
+  const base = `https://streaming.bazytrack.jo/live/0/`;
+  const m3u8 = `${base}${imei}.m3u8`;
 
-  checkStream(stream, video);
+  checkHLSReady(base, imei, m3u8, 0);
 }
 
-function checkStream(url, video) {
-  fetch(url, { method:"HEAD" })
-    .then(res => {
-      if (res.ok) startPlayback(url, video);
-      else setTimeout(() => checkStream(url, video), 1000);
-    })
-    .catch(() => setTimeout(() => checkStream(url, video), 1000));
-}
+// Check m3u8 + first .ts segment
+async function checkHLSReady(base, imei, m3u8, attempt) {
 
-function startPlayback(url, video) {
-
-  // iPhone Safari native HLS
-  if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = url;
-    video.play().catch(err => console.log("iOS play error", err));
+  if (attempt > 60) {
+    console.log("Stream timeout.");
     return;
   }
 
-  // Android/PC: HLS.js
+  try {
+    const res = await fetch(m3u8);
+    if (!res.ok) {
+      return setTimeout(() => checkHLSReady(base, imei, m3u8, attempt + 1), 1000);
+    }
+
+    const text = await res.text();
+
+    const match = text.match(/(seg-\d+\.ts)/);
+    if (!match) {
+      return setTimeout(() => checkHLSReady(base, imei, m3u8, attempt + 1), 1000);
+    }
+
+    const tsFile = match[1];
+    const tsUrl = `${base}${tsFile}`;
+
+    const seg = await fetch(tsUrl, { method:"HEAD" });
+    if (seg.ok) {
+      console.log("HLS ready!");
+      return startPlayback(m3u8);
+    }
+
+  } catch (err) {}
+
+  setTimeout(() => checkHLSReady(base, imei, m3u8, attempt + 1), 1000);
+}
+
+function startPlayback(m3u8) {
+  const video = document.getElementById("player");
+
+  // iPhone Safari native HLS
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = m3u8;
+    video.play().catch(err => console.log("iOS play error:", err));
+    return;
+  }
+
+  // Android & PC Hls.js
   if (Hls.isSupported()) {
+
     if (window.hls) window.hls.destroy();
 
     window.hls = new Hls({
@@ -347,11 +364,11 @@ function startPlayback(url, video) {
       maxMaxBufferLength:10
     });
 
-    window.hls.loadSource(url);
+    window.hls.loadSource(m3u8);
     window.hls.attachMedia(video);
 
     window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(err => console.log("Play error:", err));
+      video.play().catch(err => console.log("playback err:", err));
     });
   }
 }
