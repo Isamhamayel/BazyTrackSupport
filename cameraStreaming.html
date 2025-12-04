@@ -5,9 +5,6 @@
 <title>BazyGo – مُشغّل التسجيلات</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- FLV.js for Chrome/Android/Windows -->
-<script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
-
 <style>
 * { box-sizing: border-box; }
 body { margin:0; font-family:'Tahoma', Arial; background:#f7f7f7; color:#333; }
@@ -204,12 +201,6 @@ function showLoading(flag){
 
 function stopPlayback(){
     const v = document.getElementById("videoPlayer");
-
-    if (window.flvPlayer){
-        try { window.flvPlayer.destroy(); } catch(e){}
-        window.flvPlayer = null;
-    }
-
     v.pause();
     v.removeAttribute("src");
     v.srcObject = null;
@@ -223,39 +214,28 @@ function playVideo(filename, deviceId, imei){
     stopPlayback();
     showLoading(true);
 
-    // Tell the camera to prepare playback stream
+    // Tell camera to prepare playback stream
     fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
 
-    // Safari → HLS
-    if (isSafari){
+    if (isSafari) {
+        // Safari → HLS
         const url = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
         playHLS(url);
-    }
-    // Chrome/Android → FLV
-    else {
-        const url = `wss://${STREAM_HOST}/live/0/${imei}.flv`;
+    } else {
+        // Chrome / Android / Windows → HTTP-FLV
+        const url = `https://${STREAM_HOST}/live/0/${imei}.flv`;
         playFLV(url);
     }
 }
 
 /* ------------------------------------------
-   FLV playback
+   FLV playback (direct HTTP-FLV)
 --------------------------------------------*/
 function playFLV(url){
     const video = document.getElementById("videoPlayer");
-
-    if (flvjs.isSupported()){
-        window.flvPlayer = flvjs.createPlayer({
-            type:"flv",
-            url:url
-        });
-        window.flvPlayer.attachMediaElement(video);
-        window.flvPlayer.load();
-        window.flvPlayer.play().then(()=>showLoading(false));
-    } else {
-        alert("FLV غير مدعوم هنا");
-        showLoading(false);
-    }
+    video.src = url;
+    video.play().catch(()=>{});
+    showLoading(false);
 }
 
 /* ------------------------------------------
