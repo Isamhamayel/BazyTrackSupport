@@ -2,167 +2,374 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>Bazytrack Streaming</title>
+<title>BazyGo – مُشغّل التسجيلات</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- FLV.js for Chrome/Android/Windows -->
+<script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
+
 <style>
-    body {
-        margin: 0;
-        font-family: Tahoma, Arial;
-        background: #f4f4f4;
-    }
-    header {
-        background: #0162b1;
-        color: white;
-        padding: 15px;
-        font-size: 22px;
-        font-weight: bold;
-    }
+* { box-sizing: border-box; }
+body { margin:0; font-family:'Tahoma', Arial; background:#f7f7f7; color:#333; }
+
+header {
+    background:#ffffff;
+    padding:15px;
+    font-size:20px;
+    font-weight:bold;
+    border-bottom:2px solid #e2e2e2;
+}
+
+.container {
+    display:flex;
+    flex-direction:column;
+}
+
+.player-area {
+    background:white;
+    padding:12px;
+    position:sticky;
+    top:0;
+    box-shadow:0 3px 6px rgba(0,0,0,0.1);
+    z-index:100;
+}
+
+#videoPlayer {
+    width:100%;
+    background:black;
+    border-radius:10px;
+    max-height:55vh;
+}
+
+.filters {
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:10px;
+}
+
+.filters select,
+.filters input[type=date] {
+    padding:8px;
+    border-radius:6px;
+    border:1px solid #ccc;
+    font-size:14px;
+}
+
+.cam-buttons {
+    margin-top:10px;
+}
+
+.cam-btn {
+    padding:6px 14px;
+    border-radius:6px;
+    border:1px solid #aaa;
+    cursor:pointer;
+    margin-left:8px;
+    font-size:13px;
+    background:#fafafa;
+}
+.cam-btn.active {
+    background:#2196F3;
+    color:white;
+    border-color:#2196F3;
+}
+
+.file-list {
+    padding:15px;
+}
+
+.file-item {
+    background:white;
+    padding:12px;
+    margin-bottom:10px;
+    border-radius:8px;
+    border:1px solid #ddd;
+    cursor:pointer;
+    transition:0.15s;
+}
+.file-item:hover {
+    background:#e9f4ff;
+    border-color:#2196F3;
+}
+
+.time-label {
+    font-size:12px;
+    color:#666;
+    margin-bottom:4px;
+}
+
+#loadingOverlay {
+    position:absolute;
+    top:0; left:0; right:0;
+    height:100%;
+    background:rgba(255,255,255,0.85);
+    display:none;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    border-radius:10px;
+}
+
+.spinner {
+    width:34px;
+    height:34px;
+    border:4px solid #ccc;
+    border-top:4px solid #2196F3;
+    border-radius:50%;
+    animation:spin 0.7s linear infinite;
+}
+
+@keyframes spin { 100% { transform:rotate(360deg); } }
+
+@media (min-width:800px) {
     .container {
-        display: flex;
-        padding: 15px;
-        gap: 15px;
+        flex-direction:row;
     }
-    .sidebar {
-        width: 260px;
-        background: #fff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 0 8px #ccc;
+    .player-area {
+        flex:0 0 50%;
+        height:100vh;
+        position:sticky;
     }
-    .content {
-        flex: 1;
-        background: #fff;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 0 8px #ccc;
+    .file-list {
+        flex:0 0 50%;
+        height:100vh;
+        overflow-y:auto;
+        padding:20px;
     }
-    .filter-title {
-        font-size: 18px;
-        margin-bottom: 10px;
-        font-weight: bold;
+    #videoPlayer {
+        height:500px;
+        max-height:500px;
     }
-    #fileList li {
-        padding: 5px;
-        margin-bottom: 5px;
-        background: #eee;
-        border-radius: 5px;
-        cursor: pointer;
-    }
-    #playerBox {
-        background: #000;
-        border-radius: 8px;
-        overflow: hidden;
-        width: 100%;
-        height: 350px;
-        margin-top: 15px;
-    }
-    #player {
-        width: 100%;
-        height: 100%;
-        background: #000;
-    }
+}
 </style>
 </head>
 
 <body>
 
-<header>
-    منصة Bazytrack — الملفات + الفلاتر + البث
-</header>
+<header>🎥 مشغّل التسجيلات – BazyGo</header>
 
 <div class="container">
 
-    <!-- الشريط الجانبي -->
-    <div class="sidebar">
-        
-        <div class="filter-title">📤 تحميل ملف</div>
-        <input type="file" id="upload" style="width:100%">
-        <br><br>
+    <!-- PLAYER + FILTERS -->
+    <div class="player-area">
+        <div style="position:relative;">
+            <video id="videoPlayer" controls playsinline></video>
 
-        <div class="filter-title">🔍 فلتر الملفات</div>
-        <input type="text" id="search" placeholder="ابحث..." style="width:100%; padding:6px;">
-        <br><br>
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+                <div style="margin-top:10px;">جارِ تحميل الفيديو...</div>
+            </div>
+        </div>
 
-        <div class="filter-title">📁 قائمة الملفات</div>
-        <ul id="fileList"></ul>
+        <div class="filters">
+            <select id="deviceSelect" onchange="loadFiles()"></select>
+            <input type="date" id="datePicker" onchange="loadFiles()">
+            <select id="hourPicker" onchange="loadFiles()"></select>
+        </div>
 
+        <div class="cam-buttons">
+            <span id="btnC1" class="cam-btn active" onclick="setCam(1)">كاميرا 1</span>
+            <span id="btnC2" class="cam-btn" onclick="setCam(2)">كاميرا 2</span>
+            <span id="btnCAll" class="cam-btn" onclick="setCam('all')">الكل</span>
+        </div>
     </div>
 
-    <!-- المحتوى -->
-    <div class="content">
-        <h3>🎥 البث المباشر / تشغيل الفيديو</h3>
-        <p>اضغط على ملف من القائمة ليتم عرضه هنا…</p>
-
-        <div id="playerBox">
-            <video id="player" controls autoplay playsinline></video>
-        </div>
+    <!-- FILE LIST -->
+    <div class="file-list" id="fileList">
+        <i>اختر الجهاز والتاريخ والساعة...</i>
     </div>
 
 </div>
 
-<!-- flv.js -->
-<script src="https://cdn.jsdelivr.net/npm/flv.js@latest/dist/flv.min.js"></script>
-
 <script>
+/* ------------------------------------------
+   CONFIG
+--------------------------------------------*/
+const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
 
-// تخزين الملفات محلياً في الذاكرة
-let savedFiles = [];
+const STREAM_HOST = "streaming.bazytrack.jo";
 
-// عند رفع ملف
-document.getElementById("upload").addEventListener("change", function(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+let cameraFilter = 1;
 
-    savedFiles.push(file);
-    renderFileList();
-});
-
-// فلترة الملفات
-document.getElementById("search").addEventListener("input", function() {
-    renderFileList();
-});
-
-// عرض ملفات القائمة
-function renderFileList() {
-    const list = document.getElementById("fileList");
-    const filter = document.getElementById("search").value.toLowerCase();
-
-    list.innerHTML = "";
-    savedFiles
-        .filter(f => f.name.toLowerCase().includes(filter))
-        .forEach(file => {
-            let li = document.createElement("li");
-            li.textContent = file.name;
-            li.onclick = () => loadVideoFile(file);
-            list.appendChild(li);
-        });
+/* ------------------------------------------
+   UI HELPERS
+--------------------------------------------*/
+function showLoading(flag){
+    document.getElementById("loadingOverlay").style.display = flag ? "flex" : "none";
 }
 
-// تحميل وتشغيل ملف فيديو
-function loadVideoFile(file) {
-    const url = URL.createObjectURL(file);
-    playVideo(url);
+function stopPlayback(){
+    const v = document.getElementById("videoPlayer");
+
+    if (window.flvPlayer){
+        try { window.flvPlayer.destroy(); } catch(e){}
+        window.flvPlayer = null;
+    }
+
+    v.pause();
+    v.removeAttribute("src");
+    v.srcObject = null;
+    v.load();
 }
 
-// تشغيل FLV / HLS تلقائي
-function playVideo(url) {
-    const video = document.getElementById("player");
+/* ------------------------------------------
+   PLAYBACK SELECTOR (FLV or HLS)
+--------------------------------------------*/
+function playVideo(filename, deviceId, imei){
+    stopPlayback();
+    showLoading(true);
 
-    if (url.endsWith(".flv") && flvjs.isSupported()) {
-        const flvPlayer = flvjs.createPlayer({
-            type: "flv",
-            url: url
-        });
-        flvPlayer.attachMediaElement(video);
-        flvPlayer.load();
-        flvPlayer.play();
-    } else {
-        video.src = url;
-        video.play();
+    // Tell the camera to prepare playback stream
+    fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
+
+    // Safari → HLS
+    if (isSafari){
+        const url = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+        playHLS(url);
+    }
+    // Chrome/Android → FLV
+    else {
+        const url = `wss://${STREAM_HOST}/live/0/${imei}.flv`;
+        playFLV(url);
     }
 }
 
+/* ------------------------------------------
+   FLV playback
+--------------------------------------------*/
+function playFLV(url){
+    const video = document.getElementById("videoPlayer");
+
+    if (flvjs.isSupported()){
+        window.flvPlayer = flvjs.createPlayer({
+            type:"flv",
+            url:url
+        });
+        window.flvPlayer.attachMediaElement(video);
+        window.flvPlayer.load();
+        window.flvPlayer.play().then(()=>showLoading(false));
+    } else {
+        alert("FLV غير مدعوم هنا");
+        showLoading(false);
+    }
+}
+
+/* ------------------------------------------
+   HLS playback (Safari only)
+--------------------------------------------*/
+function playHLS(url){
+    const video = document.getElementById("videoPlayer");
+    video.src = url;
+    video.play().catch(()=>{});
+    showLoading(false);
+}
+
+/* ------------------------------------------
+   CAMERA FILTERS
+--------------------------------------------*/
+function setCam(c){
+    cameraFilter = c;
+
+    btnC1.classList.toggle("active", c===1);
+    btnC2.classList.toggle("active", c===2);
+    btnCAll.classList.toggle("active", c==="all");
+
+    loadFiles();
+}
+
+/* ------------------------------------------
+   LOAD DEVICES FROM URL PARAMS
+--------------------------------------------*/
+const params = new URLSearchParams(window.location.search);
+const decoded = params.get("params") ? JSON.parse(decodeURIComponent(params.get("params"))) : {};
+
+(decoded["ds16.devices"] || "")
+.split(",")
+.map(x=>x.trim())
+.filter(Boolean)
+.forEach(id=>{
+    deviceSelect.innerHTML += `<option value="${id}">جهاز ${id}</option>`;
+});
+
+/* Populate hours */
+for (let h=0; h<24; h++){
+    let hh = h.toString().padStart(2,"0");
+    hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
+}
+
+/* ------------------------------------------
+   LOAD FILE LIST FROM GOOGLE SHEET
+--------------------------------------------*/
+async function loadFiles(){
+    const id = deviceSelect.value;
+    const date = datePicker.value;
+    const hour = hourPicker.value;
+    const fileList = document.getElementById("fileList");
+
+    if (!id || !date || !hour){
+        fileList.innerHTML = "<i>اختر الجهاز والتاريخ والساعة...</i>";
+        return;
+    }
+
+    fileList.innerHTML = "جارِ التحميل...";
+
+    const sql = `select * where G=${id} order by A desc`;
+    const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
+
+    try {
+        const text = await (await fetch(url)).text();
+        const json = JSON.parse(text.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
+
+        let output = [];
+
+        rows.forEach(r=>{
+            let c = r.c;
+            if (!c) return;
+
+            const raw = c[0].f; 
+            const [mdy, t] = raw.split(" ");
+            const [M,D,Y] = mdy.split("/");
+
+            const d2 = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
+            const hh = t.split(":")[0].padStart(2,"0");
+
+            if (d2 !== date || hh !== hour) return;
+
+            if (cameraFilter!=="all" && String(c[4]?.v)!==String(cameraFilter)) return;
+
+            output.push({
+                time:t,
+                filename:c[2].v,
+                imei:c[1].f,
+                deviceId:c[6].v
+            });
+        });
+
+        if (!output.length){
+            fileList.innerHTML = "لا يوجد ملفات في هذه الساعة.";
+            return;
+        }
+
+        fileList.innerHTML = "";
+        output.forEach(v=>{
+            fileList.innerHTML += `
+                <div class="file-item"
+                    onclick="playVideo('${v.filename}','${v.deviceId}','${v.imei}')">
+                    <div class="time-label">${v.filename}</div>
+                    <b>${v.time}</b>
+                </div>
+            `;
+        });
+
+    } catch(e){
+        fileList.innerHTML = "خطأ في تحميل البيانات.";
+    }
+}
 </script>
 
 </body>
