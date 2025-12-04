@@ -48,6 +48,7 @@ header {
     cursor:pointer;
     font-size:14px;
 }
+
 #downloadBtn:hover { background:#218838; }
 
 #videoPlayer {
@@ -146,7 +147,7 @@ header {
 <script>
 /* CONFIG */
 const FILE_SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
-const DEVICE_SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";    // <<< REPLACE THIS ONLY
+const DEVICE_SHEET_ID = "YOUR_DEVICE_SHEET_ID_HERE";    // <<< REPLACE THIS
 
 const FILE_SHEET_URL =
   `https://docs.google.com/spreadsheets/d/${FILE_SHEET_ID}/gviz/tq?tqx=out:json`;
@@ -160,6 +161,7 @@ const WEBAPP_URL =
 const STREAM_HOST = "streaming.bazytrack.jo";
 
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
 let cameraFilter = 1;
 let flvPlayer = null;
 
@@ -168,8 +170,10 @@ let deviceImeis = {};   // deviceId → imei
 
 let currentDownloadUrl = "";
 
-/* UI Helpers */
-function showLoading(s){ document.getElementById("loadingOverlay").style.display = s ? "flex" : "none"; }
+/********** UI HELPERS **********/
+function showLoading(s){
+    document.getElementById("loadingOverlay").style.display = s ? "flex" : "none";
+}
 
 function stopPlayback(){
     const video = document.getElementById("videoPlayer");
@@ -180,38 +184,36 @@ function stopPlayback(){
     video.load();
 }
 
-/* Load device names + IMEI from separate sheet */
-async function loadDeviceDropdown() {
+/********** LOAD DEVICE NAMES **********/
+async function loadDeviceNames() {
+    const query = "select A,B,C"; // deviceId, imei, name
+    const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
 
-    await loadDeviceNames(); // Load from Devices sheet FIRST
+    try {
+        const res = await fetch(url);
+        const txt = await res.text();
+        const json = JSON.parse(txt.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
 
-    const params = new URLSearchParams(window.location.search);
-    const decoded = params.get("params")
-        ? JSON.parse(decodeURIComponent(params.get("params")))
-        : {};
+        rows.forEach(r => {
+            const deviceId = r.c[0]?.v;
+            const imei = r.c[1]?.v;
+            const name = r.c[2]?.v;
 
-    const ids = (decoded["ds16.devices"] || "")
-                    .split(",")
-                    .filter(Boolean);
+            if (!deviceId) return;
 
-    deviceSelect.innerHTML = "";
+            deviceNames[deviceId] = name || ("جهاز " + deviceId);
+            deviceImeis[deviceId] = imei;
+        });
 
-    ids.forEach(id => {
+        console.log("Device names loaded:", deviceNames);
 
-        // ONLY include devices that exist in the Devices Sheet
-        if (!deviceNames[id]) return;
-
-        const name = deviceNames[id];
-        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
-    });
-
-    // If no matching devices found
-    if (!deviceSelect.innerHTML.trim()) {
-        deviceSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
+    } catch(err) {
+        console.error("Error loading device names:", err);
     }
 }
 
-/* RETRY logic */
+/********** RETRY LOGIC **********/
 function retryPlay(url, isFlv){
     const video = document.getElementById("videoPlayer");
     const errorBox = document.getElementById("errorMessage");
@@ -232,7 +234,7 @@ function retryPlay(url, isFlv){
         if (success) {
             errorBox.style.display = "none";
             btn.style.display = "inline-block";
-            btn.onclick = () => { window.open(currentDownloadUrl, "_blank"); };
+            btn.onclick = () => window.open(currentDownloadUrl, "_blank");
         }
     }
 
@@ -244,6 +246,7 @@ function retryPlay(url, isFlv){
 
         if (isFlv){
             if (flvjs.isSupported()) {
+
                 flvPlayer = flvjs.createPlayer({
                     type: "flv",
                     url: url
@@ -260,11 +263,11 @@ function retryPlay(url, isFlv){
 
         } else {
             video.src = url;
-            video.play().then(()=> stopRetry(true)).catch(()=>{});
+            video.play().then(() => stopRetry(true)).catch(()=>{});
         }
 
         intervalCheck = setInterval(() => {
-            if (video.currentTime > 0 && !video.paused && !video.ended){
+            if (video.currentTime > 0 && !video.paused){
                 stopRetry(true);
             }
         }, 300);
@@ -272,14 +275,14 @@ function retryPlay(url, isFlv){
         setTimeout(() => {
             if (ready) return;
 
-            if (attempts < 30) {
+            if (attempts < 30){
                 console.log("Retry:", attempts);
                 tryLoad();
             } else {
-                clearInterval(intervalCheck);
                 showLoading(false);
                 errorBox.textContent = "⚠ تعذّر تشغيل الفيديو. الرجاء المحاولة بعد قليل.";
                 errorBox.style.display = "block";
+                clearInterval(intervalCheck);
             }
         }, 1200);
     }
@@ -287,8 +290,9 @@ function retryPlay(url, isFlv){
     tryLoad();
 }
 
-/* PLAYBACK */
+/********** PLAY VIDEO **********/
 function playVideo(filename, deviceId){
+
     stopPlayback();
     showLoading(true);
 
@@ -309,7 +313,7 @@ function playVideo(filename, deviceId){
     }
 }
 
-/* FILTERS */
+/********** CAMERA FILTER **********/
 function setCam(c){
     cameraFilter = c;
     btnC1.classList.toggle("active", c===1);
@@ -318,10 +322,10 @@ function setCam(c){
     loadFiles();
 }
 
-/* DEVICES FROM URL PARAMS */
+/********** DEVICE DROPDOWN **********/
 async function loadDeviceDropdown() {
 
-    await loadDeviceNames(); // Load from Devices sheet FIRST
+    await loadDeviceNames(); // load from Devices sheet
 
     const params = new URLSearchParams(window.location.search);
     const decoded = params.get("params")
@@ -335,22 +339,32 @@ async function loadDeviceDropdown() {
     deviceSelect.innerHTML = "";
 
     ids.forEach(id => {
-        const name = deviceNames[id] || ("جهاز " + id);
+
+        // ONLY show devices defined in Devices Sheet
+        if (!deviceNames[id]) return;
+
+        const name = deviceNames[id];
         deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
     });
+
+    if (!deviceSelect.innerHTML.trim()){
+        deviceSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
+    }
 }
 
-/* POPULATE HOURS */
+/********** POPULATE HOURS **********/
 for (let h=0; h<24; h++){
     const hh = h.toString().padStart(2,"0");
     hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
 }
 
-/* LOAD FILES */
+/********** LOAD FILES **********/
 async function loadFiles(){
+
     const id = deviceSelect.value;
     const date = datePicker.value;
     const hour = hourPicker.value;
+
     const fileList = document.getElementById("fileList");
 
     if (!id || !date || !hour){
@@ -370,7 +384,7 @@ async function loadFiles(){
 
         let output = [];
 
-        rows.forEach(r=>{
+        rows.forEach(r => {
             const c = r.c;
             if (!c) return;
 
@@ -405,14 +419,14 @@ async function loadFiles(){
                 </div>`;
         });
 
-    } catch{
+    } catch(err){
+        console.error(err);
         fileList.innerHTML = "خطأ في تحميل البيانات.";
     }
 }
 
-/* INITIAL LOAD */
+/********** INITIALIZE **********/
 loadDeviceDropdown();
-
 </script>
 
 </body>
