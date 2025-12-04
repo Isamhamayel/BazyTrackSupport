@@ -4,14 +4,20 @@
 <meta charset="UTF-8">
 <title>BazyGo – Video Player</title>
 
+<!-- HLS.js for Android/PC -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
-  body { margin:0; font-family:Arial; background:#f2f2f2; direction:rtl; }
+  body { margin:0; font-family:Arial; background:#f2f2f2; }
   .container { display:flex; height:100vh; }
 
+  @media (max-width: 768px) {
+    .container { flex-direction: column; height:auto; }
+    .left, .right { width:100%; height:auto; }
+  }
+
   .left {
-    width:45%; background:white; border-left:2px solid #ddd;
+    width:45%; background:white; border-right:2px solid #ddd;
     padding:15px; overflow-y:auto; box-sizing:border-box;
   }
 
@@ -34,16 +40,6 @@
   }
   .cam-btn.active { background:#2196F3; color:white; }
 
-  #loading {
-    display:none;
-    padding:8px;
-    background:#fff3cd;
-    border:1px solid #ffeeba;
-    border-radius:5px;
-    margin-bottom:10px;
-    color:#856404;
-  }
-
   .controls select,
   .controls input[type="date"] {
     padding:5px; margin-right:8px; margin-bottom:10px;
@@ -56,7 +52,7 @@
 
 <div class="container">
 
-  <!-- LEFT -->
+  <!-- LEFT SIDE -->
   <div class="left">
     <h3>📁 قائمة الفيديوهات</h3>
 
@@ -80,38 +76,52 @@
     <hr>
 
     <div id="fileList"><i>اختر الفلاتر...</i></div>
-
   </div>
 
-  <!-- RIGHT -->
+  <!-- RIGHT SIDE -->
   <div class="right">
     <h3>🎥 المشغّل</h3>
-
-    <div id="loading">⏳ جارِ تجهيز الفيديو…</div>
-
-    <video id="player" width="100%" height="480" controls muted playsinline style="background:black;"></video>
+    <video id="player"
+           width="100%"
+           height="auto"
+           controls
+           muted
+           playsinline
+           style="background:black; max-height:60vh; border-radius:8px;">
+    </video>
   </div>
 
 </div>
 
-
 <script>
-/* ========== CONFIG ========== */
+/* ------------------------------------------------------------
+   CONFIG
+------------------------------------------------------------ */
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
 
-/* ========== STATE ========== */
+/* ============================================================
+   STATE
+============================================================ */
 let cameraFilter = 1;
 
-/* ========== HOURS LIST ========== */
+/* ============================================================
+   HOURS LIST
+============================================================ */
 const hourPicker = document.getElementById("hourPicker");
 for (let h = 0; h < 24; h++) {
   const hh = h.toString().padStart(2, "0");
-  hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
+  const opt = document.createElement("option");
+  opt.value = hh;
+  opt.textContent = hh + ":00";
+  hourPicker.appendChild(opt);
 }
 
-/* ========== CAMERA FILTER ========== */
+/* ============================================================
+   CAMERA SELECT
+============================================================ */
 function setCam(c) {
   cameraFilter = c;
 
@@ -122,25 +132,33 @@ function setCam(c) {
   loadFiles();
 }
 
-/* ========== READ DEVICES FROM LOOKER PARAMS ========== */
+/* ============================================================
+   READ DEVICES FROM URL PARAMS
+============================================================ */
 const params = new URLSearchParams(window.location.search);
 const devicesJSON = params.get("params");
 const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
-const deviceList = (decoded["ds16.devices"] || "").split(",").map(x => x.trim()).filter(x => x);
+const deviceList = decoded["ds16.devices"] ? decoded["ds16.devices"].split(",") : [];
 
 const deviceSelect = document.getElementById("deviceSelect");
 deviceList.forEach(id => {
-  deviceSelect.innerHTML += `<option value="${id}">Device ${id}</option>`;
+  id = id.trim();
+  if (!id) return;
+  const opt = document.createElement("option");
+  opt.value = id;
+  opt.textContent = "Device " + id;
+  deviceSelect.appendChild(opt);
 });
 
 /* ============================================================
-   LOAD FILES — FINAL FIXED VERSION
+   LOAD FILES
 ============================================================ */
 async function loadFiles() {
 
   const deviceId = deviceSelect.value;
   const dateSel  = document.getElementById("datePicker").value;
   const hourSel  = document.getElementById("hourPicker").value;
+
   const fileList = document.getElementById("fileList");
 
   if (!deviceId || !dateSel || !hourSel) {
@@ -162,29 +180,16 @@ async function loadFiles() {
     const out = [];
 
     rows.forEach(r => {
-
       const cols = r.c;
       if (!cols) return;
 
-      // Google Sheets formatted date string
-      const formatted = cols[0].f;   // example: "6/11/2025 13:32:10"
-      if (!formatted) return;
-
-      // split string
-      console.log("date as is = ",formatted);
-      const [mdy, time] = formatted.split(" "); // ["6/11/2025", "13:32:10"]
+      const raw = cols[0].f;
+      const [mdy, time] = raw.split(" ");
       const [M, D, Y] = mdy.split("/");
 
-      // normalized date for datepicker
-      const yyyy_mm_dd = `${Y}-${M.padStart(2, "0")}-${D.padStart(2, "0")}`;
+      const yyyy_mm_dd = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
+      const hh = time.split(":")[0].padStart(2,"0");
 
-      // extract hour from string directly (NO new Date())
-      const hh = time.split(":")[0].padStart(2, "0");
-      console.log("date sheet =",yyyy_mm_dd);
-      console.log("date = ",dateSel);
-      console.log("hours sheet =",hh);
-      console.log("hours = ",hourSel);
-      // filters
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
 
@@ -197,7 +202,6 @@ async function loadFiles() {
         imei: cols[1].f,
         deviceId: cols[6].v
       });
-
     });
 
     if (!out.length) {
@@ -206,12 +210,10 @@ async function loadFiles() {
     }
 
     fileList.innerHTML = "";
-
     out.forEach(v => {
       const div = document.createElement("div");
       div.className = "file";
-      div.innerHTML =
-        `<div class="time-label">${v.filename}</div>${v.time}`;
+      div.innerHTML = `<div class="time-label">${v.filename}</div>${v.time}`;
       div.onclick = () => playVideo(v.filename, v.deviceId, v.imei);
       fileList.appendChild(div);
     });
@@ -222,15 +224,16 @@ async function loadFiles() {
   }
 }
 
-
 /* ============================================================
-   VIDEO PLAYER
+   STREAM PLAYER (iOS + ANDROID + PC)
 ============================================================ */
+
+// Stop old stream
 function stopPlayer() {
   const video = document.getElementById("player");
 
   if (window.hls) {
-    try { window.hls.destroy(); } catch(e) {}
+    try { window.hls.destroy(); } catch (e) {}
     window.hls = null;
   }
 
@@ -239,60 +242,63 @@ function stopPlayer() {
   video.load();
 }
 
+// Click handler
 function playVideo(fname, deviceId, imei) {
 
-  stopPlayer();
-
-  document.getElementById("loading").style.display = "block";
+  stopPlayer(); // CLEAR previous playback
 
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
-  const stream = `https://streaming.bazytrack.jo/live/0/${imei}.m3u8`;
+  const stream = `https://streaming.bazytrack.jo/live/0/${imei}/index.m3u8`;
   const video = document.getElementById("player");
 
-  checkStreamReady(stream, video, 0);
+  checkStream(stream, video);
 }
 
-function checkStreamReady(url, video, attempts) {
-
-  if (attempts > 15) {
-    alert("⚠ الفيديو غير جاهز بعد. حاول مرة أخرى.");
-    document.getElementById("loading").style.display = "none";
-    return;
-  }
-
-  fetch(url, { method: 'HEAD' })
+// Retry every 1 sec until stream exists
+function checkStream(url, video) {
+  fetch(url, { method: "HEAD" })
     .then(res => {
       if (res.ok) {
-        startHLS(url, video);
+        startPlayback(url, video);
       } else {
-        setTimeout(() => checkStreamReady(url, video, attempts + 1), 2000);
+        setTimeout(() => checkStream(url, video), 1000);
       }
     })
     .catch(() => {
-      setTimeout(() => checkStreamReady(url, video, attempts + 1), 2000);
+      setTimeout(() => checkStream(url, video), 1000);
     });
 }
 
-function startHLS(url, video) {
+// Start playback
+function startPlayback(url, video) {
 
+  // Native iOS Safari HLS
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = url;
+    video.play().catch(err => console.log("iOS autoplay error", err));
+    return;
+  }
+
+  // HLS.js for Android and PC
   if (Hls.isSupported()) {
-
     if (window.hls) window.hls.destroy();
 
-    window.hls = new Hls();
+    window.hls = new Hls({
+      maxBufferLength: 5,
+      maxMaxBufferLength: 10
+    });
+
     window.hls.loadSource(url);
     window.hls.attachMedia(video);
 
-    window.hls.on(Hls.Events.MANIFEST_PARSED, function () {
-      document.getElementById("loading").style.display = "none";
-      video.play();
+    window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      video.play().catch(err => console.log("HLS play error", err));
     });
 
-  } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-    video.src = url;
-    document.getElementById("loading").style.display = "none";
-    video.play();
+    window.hls.on(Hls.Events.ERROR, (event, data) => {
+      console.log("HLS error:", data);
+    });
   }
 }
 
