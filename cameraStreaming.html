@@ -48,7 +48,6 @@ header {
     cursor:pointer;
     font-size:14px;
 }
-
 #downloadBtn:hover { background:#218838; }
 
 #videoPlayer {
@@ -113,7 +112,6 @@ header {
 
     <div id="errorMessage"></div>
 
-    <!-- DOWNLOAD BUTTON (HIDDEN UNTIL STREAM READY) -->
     <button id="downloadBtn">⬇ تحميل الفيديو</button>
 
     <div style="position:relative;">
@@ -147,14 +145,27 @@ header {
 
 <script>
 /* CONFIG */
-const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
-const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
+const FILE_SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+const DEVICE_SHEET_ID = "YOUR_DEVICE_SHEET_ID_HERE";    // <<< REPLACE THIS ONLY
+
+const FILE_SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${FILE_SHEET_ID}/gviz/tq?tqx=out:json`;
+
+const DEVICE_SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${DEVICE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=Devices`;
+
+const WEBAPP_URL =
+  "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
+
 const STREAM_HOST = "streaming.bazytrack.jo";
 
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 let cameraFilter = 1;
 let flvPlayer = null;
+
+let deviceNames = {};   // deviceId → name
+let deviceImeis = {};   // deviceId → imei
+
 let currentDownloadUrl = "";
 
 /* UI Helpers */
@@ -169,6 +180,35 @@ function stopPlayback(){
     video.load();
 }
 
+/* Load device names + IMEI from separate sheet */
+async function loadDeviceNames() {
+    const query = "select A,B,C"; // deviceId, imei, name
+    const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
+
+    try {
+        const res = await fetch(url);
+        const txt = await res.text();
+        const json = JSON.parse(txt.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
+
+        rows.forEach(r => {
+            const deviceId = r.c[0]?.v;
+            const imei = r.c[1]?.v;
+            const name = r.c[2]?.v;
+
+            if (!deviceId) return;
+
+            deviceNames[deviceId] = name || ("جهاز " + deviceId);
+            deviceImeis[deviceId] = imei;
+        });
+
+        console.log("Device names loaded:", deviceNames);
+
+    } catch(err) {
+        console.error("Error loading device names:", err);
+    }
+}
+
 /* RETRY logic */
 function retryPlay(url, isFlv){
     const video = document.getElementById("videoPlayer");
@@ -179,9 +219,7 @@ function retryPlay(url, isFlv){
     let intervalCheck = null;
     let ready = false;
 
-    // Reset UI
     errorBox.style.display = "none";
-    errorBox.textContent = "";
     btn.style.display = "none";
 
     function stopRetry(success){
@@ -194,7 +232,6 @@ function retryPlay(url, isFlv){
             btn.style.display = "inline-block";
             btn.onclick = () => { window.open(currentDownloadUrl, "_blank"); };
         }
-        console.log("Stream ready!");
     }
 
     function tryLoad(){
@@ -218,21 +255,18 @@ function retryPlay(url, isFlv){
                 flvPlayer.load();
                 flvPlayer.play().catch(()=>{});
             }
+
         } else {
             video.src = url;
-            video.play()
-                 .then(()=> stopRetry(true))
-                 .catch(()=>{});
+            video.play().then(()=> stopRetry(true)).catch(()=>{});
         }
 
-        // Backup detection
         intervalCheck = setInterval(() => {
-            if (video.currentTime > 0 && !video.paused && !video.ended) {
+            if (video.currentTime > 0 && !video.paused && !video.ended){
                 stopRetry(true);
             }
         }, 300);
 
-        // Retry schedule
         setTimeout(() => {
             if (ready) return;
 
@@ -245,37 +279,31 @@ function retryPlay(url, isFlv){
                 errorBox.textContent = "⚠ تعذّر تشغيل الفيديو. الرجاء المحاولة بعد قليل.";
                 errorBox.style.display = "block";
             }
-
         }, 1200);
     }
 
     tryLoad();
 }
 
-/* MAIN playback */
-function playVideo(filename, deviceId, imei){
+/* PLAYBACK */
+function playVideo(filename, deviceId){
     stopPlayback();
     showLoading(true);
 
-    // Tell camera to prepare the video
+    const imei = deviceImeis[deviceId];
+
     fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
 
-    // Prepare download link
     currentDownloadUrl = isSafari
         ? `https://${STREAM_HOST}/live/0/${imei}.m3u8`
         : `https://${STREAM_HOST}/live/0/${imei}.flv`;
 
     document.getElementById("downloadBtn").style.display = "none";
 
-    // Safari → HLS
     if (isSafari){
-        const url = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-        retryPlay(url, false);
-    }
-    // Chrome, Android → FLV.js
-    else {
-        const url = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-        retryPlay(url, true);
+        retryPlay(`https://${STREAM_HOST}/live/0/${imei}.m3u8`, false);
+    } else {
+        retryPlay(`https://${STREAM_HOST}/live/0/${imei}.flv`, true);
     }
 }
 
@@ -289,19 +317,30 @@ function setCam(c){
 }
 
 /* DEVICES FROM URL PARAMS */
-const params = new URLSearchParams(window.location.search);
-const decoded = params.get("params") ? JSON.parse(decodeURIComponent(params.get("params"))) : {};
+async function loadDeviceDropdown() {
 
-(decoded["ds16.devices"] || "")
-.split(",")
-.filter(Boolean)
-.forEach(id=>{
-    deviceSelect.innerHTML += `<option value="${id}">جهاز ${id}</option>`;
-});
+    await loadDeviceNames(); // Load from Devices sheet FIRST
 
-/* Populate hours */
+    const params = new URLSearchParams(window.location.search);
+    const decoded = params.get("params")
+        ? JSON.parse(decodeURIComponent(params.get("params")))
+        : {};
+
+    const ids = (decoded["ds16.devices"] || "")
+                    .split(",")
+                    .filter(Boolean);
+
+    deviceSelect.innerHTML = "";
+
+    ids.forEach(id => {
+        const name = deviceNames[id] || ("جهاز " + id);
+        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
+    });
+}
+
+/* POPULATE HOURS */
 for (let h=0; h<24; h++){
-    let hh = h.toString().padStart(2,"0");
+    const hh = h.toString().padStart(2,"0");
     hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
 }
 
@@ -320,7 +359,7 @@ async function loadFiles(){
     fileList.innerHTML = "جارِ التحميل...";
 
     const sql = `select * where G=${id} order by A desc`;
-    const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
+    const url = FILE_SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
     try {
         const text = await (await fetch(url)).text();
@@ -336,6 +375,7 @@ async function loadFiles(){
             const raw = c[0].f;
             const [mdy, t] = raw.split(" ");
             const [M,D,Y] = mdy.split("/");
+
             const d2 = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
             const hh = t.split(":")[0].padStart(2,"0");
 
@@ -345,7 +385,6 @@ async function loadFiles(){
             output.push({
                 time:t,
                 filename:c[2].v,
-                imei:c[1].f,
                 deviceId:c[6].v
             });
         });
@@ -358,7 +397,7 @@ async function loadFiles(){
         fileList.innerHTML = "";
         output.forEach(v=>{
             fileList.innerHTML += `
-                <div class="file-item" onclick="playVideo('${v.filename}','${v.deviceId}','${v.imei}')">
+                <div class="file-item" onclick="playVideo('${v.filename}','${v.deviceId}')">
                     <div class="time-label">${v.filename}</div>
                     <b>${v.time}</b>
                 </div>`;
@@ -368,6 +407,10 @@ async function loadFiles(){
         fileList.innerHTML = "خطأ في تحميل البيانات.";
     }
 }
+
+/* INITIAL LOAD */
+loadDeviceDropdown();
+
 </script>
 
 </body>
