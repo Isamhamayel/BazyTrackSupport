@@ -1,18 +1,65 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>Live Stream Player</title>
+<title>Bazytrack Streaming</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
     body {
         margin: 0;
+        font-family: Tahoma, Arial;
+        background: #f4f4f4;
+    }
+    header {
+        background: #0162b1;
+        color: white;
+        padding: 15px;
+        font-size: 22px;
+        font-weight: bold;
+    }
+    .container {
+        display: flex;
+        padding: 15px;
+        gap: 15px;
+    }
+    .sidebar {
+        width: 260px;
+        background: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 0 8px #ccc;
+    }
+    .content {
+        flex: 1;
+        background: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 0 8px #ccc;
+    }
+    .filter-title {
+        font-size: 18px;
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    #fileList li {
+        padding: 5px;
+        margin-bottom: 5px;
+        background: #eee;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    #playerBox {
         background: #000;
-        font-family: Arial, sans-serif;
+        border-radius: 8px;
+        overflow: hidden;
+        width: 100%;
+        height: 350px;
+        margin-top: 15px;
     }
     #player {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
         background: #000;
     }
 </style>
@@ -20,63 +67,102 @@
 
 <body>
 
-<video id="player" controls autoplay playsinline></video>
+<header>
+    منصة Bazytrack — الملفات + الفلاتر + البث
+</header>
 
-<!-- FLV.js -->
+<div class="container">
+
+    <!-- الشريط الجانبي -->
+    <div class="sidebar">
+        
+        <div class="filter-title">📤 تحميل ملف</div>
+        <input type="file" id="upload" style="width:100%">
+        <br><br>
+
+        <div class="filter-title">🔍 فلتر الملفات</div>
+        <input type="text" id="search" placeholder="ابحث..." style="width:100%; padding:6px;">
+        <br><br>
+
+        <div class="filter-title">📁 قائمة الملفات</div>
+        <ul id="fileList"></ul>
+
+    </div>
+
+    <!-- المحتوى -->
+    <div class="content">
+        <h3>🎥 البث المباشر / تشغيل الفيديو</h3>
+        <p>اضغط على ملف من القائمة ليتم عرضه هنا…</p>
+
+        <div id="playerBox">
+            <video id="player" controls autoplay playsinline></video>
+        </div>
+    </div>
+
+</div>
+
+<!-- flv.js -->
 <script src="https://cdn.jsdelivr.net/npm/flv.js@latest/dist/flv.min.js"></script>
 
 <script>
-// Detect Apple devices (iPhone, iPad, iOS Safari)
-function isAppleDevice() {
-    return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-           (navigator.vendor && navigator.vendor.includes('Apple')) ||
-           (/Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent));
+
+// تخزين الملفات محلياً في الذاكرة
+let savedFiles = [];
+
+// عند رفع ملف
+document.getElementById("upload").addEventListener("change", function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    savedFiles.push(file);
+    renderFileList();
+});
+
+// فلترة الملفات
+document.getElementById("search").addEventListener("input", function() {
+    renderFileList();
+});
+
+// عرض ملفات القائمة
+function renderFileList() {
+    const list = document.getElementById("fileList");
+    const filter = document.getElementById("search").value.toLowerCase();
+
+    list.innerHTML = "";
+    savedFiles
+        .filter(f => f.name.toLowerCase().includes(filter))
+        .forEach(file => {
+            let li = document.createElement("li");
+            li.textContent = file.name;
+            li.onclick = () => loadVideoFile(file);
+            list.appendChild(li);
+        });
 }
 
-function startStream() {
-    // Your stream URLs
-    const flvUrl = "https://streaming.bazytrack.jo/live/0/864993060747947.flv";
-    const hlsUrl = "https://streaming.bazytrack.jo/live/0/864993060747947.m3u8";
+// تحميل وتشغيل ملف فيديو
+function loadVideoFile(file) {
+    const url = URL.createObjectURL(file);
+    playVideo(url);
+}
 
+// تشغيل FLV / HLS تلقائي
+function playVideo(url) {
     const video = document.getElementById("player");
 
-    // If Apple device → force HLS
-    if (isAppleDevice()) {
-        console.log("Apple device detected → using HLS");
-        video.src = hlsUrl;
-        video.play();
-        return;
-    }
-
-    // If browser supports FLV.js → try FLV
-    if (flvjs.isSupported()) {
-        console.log("FLV.js detected → using FLV WebSocket");
+    if (url.endsWith(".flv") && flvjs.isSupported()) {
         const flvPlayer = flvjs.createPlayer({
             type: "flv",
-            url: flvUrl,
-            isLive: true
+            url: url
         });
-
         flvPlayer.attachMediaElement(video);
         flvPlayer.load();
         flvPlayer.play();
-
-        // Fallback to HLS when FLV fails
-        flvPlayer.on(flvjs.Events.ERROR, function (err) {
-            console.warn("FLV error detected → switching to HLS", err);
-            flvPlayer.unload();
-            video.src = hlsUrl;
-            video.play();
-        });
-
     } else {
-        console.log("FLV not supported → using HLS");
-        video.src = hlsUrl;
+        video.src = url;
         video.play();
     }
 }
 
-startStream();
 </script>
 
 </body>
