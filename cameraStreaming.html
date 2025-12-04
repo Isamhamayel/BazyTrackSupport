@@ -181,31 +181,33 @@ function stopPlayback(){
 }
 
 /* Load device names + IMEI from separate sheet */
-async function loadDeviceNames() {
-    const query = "select A,B,C"; // deviceId, imei, name
-    const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
+async function loadDeviceDropdown() {
 
-    try {
-        const res = await fetch(url);
-        const txt = await res.text();
-        const json = JSON.parse(txt.substring(47).slice(0,-2));
-        const rows = json.table.rows || [];
+    await loadDeviceNames(); // Load from Devices sheet FIRST
 
-        rows.forEach(r => {
-            const deviceId = r.c[0]?.v;
-            const imei = r.c[1]?.v;
-            const name = r.c[2]?.v;
+    const params = new URLSearchParams(window.location.search);
+    const decoded = params.get("params")
+        ? JSON.parse(decodeURIComponent(params.get("params")))
+        : {};
 
-            if (!deviceId) return;
+    const ids = (decoded["ds16.devices"] || "")
+                    .split(",")
+                    .filter(Boolean);
 
-            deviceNames[deviceId] = name || ("جهاز " + deviceId);
-            deviceImeis[deviceId] = imei;
-        });
+    deviceSelect.innerHTML = "";
 
-        console.log("Device names loaded:", deviceNames);
+    ids.forEach(id => {
 
-    } catch(err) {
-        console.error("Error loading device names:", err);
+        // ONLY include devices that exist in the Devices Sheet
+        if (!deviceNames[id]) return;
+
+        const name = deviceNames[id];
+        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
+    });
+
+    // If no matching devices found
+    if (!deviceSelect.innerHTML.trim()) {
+        deviceSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
     }
 }
 
