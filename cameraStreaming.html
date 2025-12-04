@@ -1,143 +1,153 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <title>BazyGo – Video Player</title>
 
-<!-- Make it fit mobile screen -->
+<!-- MOBILE -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- HLS.js for Android/PC -->
+<!-- HLS.js -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
   * { box-sizing: border-box; }
+  body { margin:0; font-family:Arial; background:#f2f2f2; }
 
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    font-family: Arial, sans-serif;
-    background: #f2f2f2;
-  }
-
-  /* Main page wrapper: top fixed area + scrollable file list */
+  /* ==========================================
+     MOBILE LAYOUT (default)
+     ========================================== */
   .page {
-    display: flex;
-    flex-direction: column;
-    height: 100vh; /* full screen */
-    width: 100vw;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    width:100vw;
   }
 
-  /* Top panel: options + cam buttons + video */
   .top-panel {
-    background: #ffffff;
-    padding: 12px;
-    border-bottom: 2px solid #ddd;
-    flex: 0 0 auto; /* fixed height, no scroll */
+    background:white;
+    padding:12px;
+    border-bottom:2px solid #ddd;
+    flex:0 0 auto;
   }
 
-  .top-panel h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
+  .file-panel {
+    flex:1 1 auto;
+    overflow-y:auto;
+    padding:12px;
+    background:#fafafa;
+  }
+
+  #player {
+    width:100%;
+    height:auto;
+    background:black;
+    max-height:60vh;
+    border-radius:8px;
   }
 
   .controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
-    margin-bottom: 8px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    align-items:center;
+    margin-bottom:8px;
   }
 
   .controls label {
-    font-size: 13px;
-    margin-right: 4px;
+    font-size:13px;
   }
 
   .controls select,
   .controls input[type="date"] {
-    padding: 5px;
-    font-size: 13px;
+    padding:5px;
+    font-size:13px;
   }
 
   .cam-buttons {
-    margin: 6px 0 10px 0;
+    margin:6px 0 10px 0;
   }
 
   .cam-btn {
-    padding: 4px 10px;
-    border: 1px solid #999;
-    margin-right: 6px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    display: inline-block;
-    margin-bottom: 4px;
+    padding:4px 10px;
+    border:1px solid #999;
+    margin-left:6px;
+    border-radius:4px;
+    cursor:pointer;
+    font-size:13px;
+    display:inline-block;
+    margin-bottom:4px;
   }
   .cam-btn.active {
-    background: #2196F3;
-    color: white;
-  }
-
-  /* Video player */
-  #player {
-    width: 100%;
-    height: auto;
-    background: black;
-    max-height: 60vh;
-    border-radius: 8px;
-  }
-
-  /* Scrollable file list area */
-  .file-panel {
-    flex: 1 1 auto;          /* take remaining height */
-    overflow-y: auto;        /* scroll only here */
-    padding: 10px 12px;
-    background: #fafafa;
+    background:#2196F3;
+    color:white;
   }
 
   .file {
-    background: #f9f9f9;
-    padding: 10px;
-    margin: 6px 0;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    cursor: pointer;
+    background:#fff;
+    padding:10px;
+    margin:6px 0;
+    border-radius:6px;
+    border:1px solid #ddd;
+    cursor:pointer;
   }
-  .file:hover {
-    background: #ececec;
-  }
+
+  .file:hover { background:#ececec; }
 
   .time-label {
-    font-size: 12px;
-    color: #666;
-    margin-bottom: 4px;
+    font-size:12px;
+    color:#666;
+    margin-bottom:4px;
   }
 
-  /* A bit nicer on larger screens */
-  @media (min-width: 900px) {
+  /* ==========================================
+     DESKTOP LAYOUT (≥768px)
+     ========================================== */
+  @media (min-width: 768px) {
+
+    body {
+      direction: rtl;
+    }
+
+    .page {
+      flex-direction:row;
+    }
+
     .top-panel {
-      max-width: 900px;
-      margin: 0 auto;
+      flex:0 0 55%;
+      height:100vh;
+      border-left:2px solid #ddd;
+      border-bottom:none;
+      padding:20px;
+      overflow-y:auto;
     }
+
     .file-panel {
-      max-width: 900px;
-      margin: 0 auto;
-      width: 100%;
+      flex:0 0 45%;
+      height:100vh;
+      border-left:none;
+      overflow-y:auto;
+      padding:20px;
+      background:white;
+      border-right:2px solid #ddd;
+    }
+
+    #player {
+      height:480px;
+      max-height:480px;
     }
   }
-
 </style>
+
 </head>
 
 <body>
 
 <div class="page">
 
-  <!-- TOP: options + cam buttons + video -->
+  <!-- LEFT ON DESKTOP / TOP ON MOBILE -->
   <div class="top-panel">
-    <h3>🎥 BazyGo – المشغّل</h3>
+    <h3>🎥 المشغّل</h3>
 
     <div class="controls">
       <label>الجهاز:</label>
@@ -156,14 +166,10 @@
       <span id="cAll" class="cam-btn" onclick="setCam('all')">الكل</span>
     </div>
 
-    <video id="player"
-           controls
-           muted
-           playsinline>
-    </video>
+    <video id="player" controls muted playsinline></video>
   </div>
 
-  <!-- BOTTOM: scrollable file list -->
+  <!-- RIGHT ON DESKTOP / BOTTOM ON MOBILE -->
   <div class="file-panel">
     <h4>📁 قائمة الفيديوهات</h4>
     <div id="fileList"><i>اختر الجهاز، التاريخ، والساعة...</i></div>
@@ -177,7 +183,6 @@
 ------------------------------------------------------------ */
 const SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-
 const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
 
 /* ============================================================
@@ -185,9 +190,7 @@ const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7W
 ============================================================ */
 let cameraFilter = 1;
 
-/* ============================================================
-   HOURS LIST
-============================================================ */
+/* Populate hours */
 const hourPicker = document.getElementById("hourPicker");
 for (let h = 0; h < 24; h++) {
   const hh = h.toString().padStart(2, "0");
@@ -197,22 +200,16 @@ for (let h = 0; h < 24; h++) {
   hourPicker.appendChild(opt);
 }
 
-/* ============================================================
-   CAMERA SELECT
-============================================================ */
+/* Camera filter */
 function setCam(c) {
   cameraFilter = c;
-
   document.getElementById("c1").classList.toggle("active", c === 1);
   document.getElementById("c2").classList.toggle("active", c === 2);
   document.getElementById("cAll").classList.toggle("active", c === "all");
-
   loadFiles();
 }
 
-/* ============================================================
-   READ DEVICES FROM URL PARAMS
-============================================================ */
+/* Read devices from URL */
 const params = new URLSearchParams(window.location.search);
 const devicesJSON = params.get("params");
 const decoded = devicesJSON ? JSON.parse(decodeURIComponent(devicesJSON)) : {};
@@ -228,15 +225,11 @@ deviceList.forEach(id => {
   deviceSelect.appendChild(opt);
 });
 
-/* ============================================================
-   LOAD FILES
-============================================================ */
+/* Load files list */
 async function loadFiles() {
-
   const deviceId = deviceSelect.value;
   const dateSel  = document.getElementById("datePicker").value;
   const hourSel  = document.getElementById("hourPicker").value;
-
   const fileList = document.getElementById("fileList");
 
   if (!deviceId || !dateSel || !hourSel) {
@@ -247,7 +240,7 @@ async function loadFiles() {
   const sql = `select * where G=${deviceId} order by A desc`;
   const url = SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
-  fileList.innerHTML = "جارِ التحميل...";
+  fileList.innerHTML = "جار التحميل...";
 
   try {
     const res = await fetch(url);
@@ -258,10 +251,10 @@ async function loadFiles() {
     const out = [];
 
     rows.forEach(r => {
-      const cols = r.c;
-      if (!cols) return;
+      const c = r.c;
+      if (!c) return;
 
-      const raw = cols[0].f; // "MM/DD/YYYY HH:MM:SS"
+      const raw = c[0].f;
       const [mdy, time] = raw.split(" ");
       const [M, D, Y] = mdy.split("/");
 
@@ -271,14 +264,14 @@ async function loadFiles() {
       if (yyyy_mm_dd !== dateSel) return;
       if (hh !== hourSel) return;
 
-      const camVal = cols[4]?.v;
+      const camVal = c[4]?.v;
       if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
       out.push({
         time,
-        filename: cols[2].v,
-        imei: cols[1].f,
-        deviceId: cols[6].v
+        filename: c[2].v,
+        imei: c[1].f,
+        deviceId: c[6].v
       });
     });
 
@@ -303,29 +296,22 @@ async function loadFiles() {
 }
 
 /* ============================================================
-   STREAM PLAYER (iOS + ANDROID + PC)
+   STREAM PLAYER
 ============================================================ */
-
-// Stop old stream
 function stopPlayer() {
   const video = document.getElementById("player");
-
   if (window.hls) {
     try { window.hls.destroy(); } catch (e) {}
     window.hls = null;
   }
-
   video.pause();
   video.removeAttribute("src");
   video.load();
 }
 
-// When user clicks a file
 function playVideo(fname, deviceId, imei) {
+  stopPlayer();
 
-  stopPlayer(); // clear previous playback
-
-  // tell camera to start playback
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
   const stream = `https://streaming.bazytrack.jo/live/0/${imei}/index.m3u8`;
@@ -334,49 +320,38 @@ function playVideo(fname, deviceId, imei) {
   checkStream(stream, video);
 }
 
-// Retry every 1 second until the HLS stream is ready
 function checkStream(url, video) {
-  fetch(url, { method: "HEAD" })
+  fetch(url, { method:"HEAD" })
     .then(res => {
-      if (res.ok) {
-        startPlayback(url, video);
-      } else {
-        setTimeout(() => checkStream(url, video), 1000);
-      }
+      if (res.ok) startPlayback(url, video);
+      else setTimeout(() => checkStream(url, video), 1000);
     })
-    .catch(() => {
-      setTimeout(() => checkStream(url, video), 1000);
-    });
+    .catch(() => setTimeout(() => checkStream(url, video), 1000));
 }
 
-// Start playback depending on platform
 function startPlayback(url, video) {
 
-  // iOS / Safari: native HLS support
+  // iPhone Safari native HLS
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = url;
-    video.play().catch(err => console.log("iOS autoplay error:", err));
+    video.play().catch(err => console.log("iOS play error", err));
     return;
   }
 
-  // Other browsers: Hls.js
+  // Android/PC: HLS.js
   if (Hls.isSupported()) {
     if (window.hls) window.hls.destroy();
 
     window.hls = new Hls({
-      maxBufferLength: 5,
-      maxMaxBufferLength: 10
+      maxBufferLength:5,
+      maxMaxBufferLength:10
     });
 
     window.hls.loadSource(url);
     window.hls.attachMedia(video);
 
     window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(err => console.log("HLS play error:", err));
-    });
-
-    window.hls.on(Hls.Events.ERROR, (event, data) => {
-      console.log("HLS error:", data);
+      video.play().catch(err => console.log("Play error:", err));
     });
   }
 }
