@@ -314,7 +314,7 @@ function playVideo(fname, deviceId, imei) {
 
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
-  const stream = `https://streaming.bazytrack.jo/live/0/${imei}/index.m3u8`;
+  const stream = `https://streaming.bazytrack.jo/live/0/${imei}.m3u8`;
   const video = document.getElementById("player");
 
   checkStream(stream, video);
