@@ -14,7 +14,8 @@ body { margin:0; font-family:'Tahoma',Arial; background:#f7f7f7; }
 
 header {
     padding:15px; background:white; font-size:20px;
-    font-weight:bold; border-bottom:2px solid #ddd; text-align:center;
+    font-weight:bold; border-bottom:2px solid #ddd;
+    text-align:center;
 }
 
 .container { display:flex; flex-direction:column; }
@@ -23,6 +24,32 @@ header {
     background:white; padding:12px; position:sticky; top:0;
     z-index:100; box-shadow:0 2px 6px rgba(0,0,0,0.1);
 }
+
+#errorMessage {
+    display:none;
+    padding:10px;
+    background:#ffdddd;
+    color:#a00;
+    border:1px solid #dd9999;
+    border-radius:6px;
+    margin-bottom:10px;
+    text-align:center;
+    font-size:14px;
+}
+
+#downloadBtn {
+    display:none;
+    margin-bottom:10px;
+    padding:8px 16px;
+    background:#28a745;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:14px;
+}
+
+#downloadBtn:hover { background:#218838; }
 
 #videoPlayer {
     width:100%; background:black; border-radius:10px;
@@ -84,6 +111,11 @@ header {
 
 <div class="player-area">
 
+    <div id="errorMessage"></div>
+
+    <!-- DOWNLOAD BUTTON (HIDDEN UNTIL STREAM READY) -->
+    <button id="downloadBtn">⬇ تحميل الفيديو</button>
+
     <div style="position:relative;">
         <video id="videoPlayer" controls playsinline></video>
 
@@ -123,6 +155,7 @@ const STREAM_HOST = "streaming.bazytrack.jo";
 const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 let cameraFilter = 1;
 let flvPlayer = null;
+let currentDownloadUrl = "";
 
 /* UI Helpers */
 function showLoading(s){ document.getElementById("loadingOverlay").style.display = s ? "flex" : "none"; }
@@ -139,43 +172,81 @@ function stopPlayback(){
 /* RETRY logic */
 function retryPlay(url, isFlv){
     const video = document.getElementById("videoPlayer");
+    const errorBox = document.getElementById("errorMessage");
+    const btn = document.getElementById("downloadBtn");
+
     let attempts = 0;
+    let intervalCheck = null;
+    let ready = false;
+
+    // Reset UI
+    errorBox.style.display = "none";
+    errorBox.textContent = "";
+    btn.style.display = "none";
+
+    function stopRetry(success){
+        ready = true;
+        clearInterval(intervalCheck);
+        showLoading(false);
+
+        if (success) {
+            errorBox.style.display = "none";
+            btn.style.display = "inline-block";
+            btn.onclick = () => { window.open(currentDownloadUrl, "_blank"); };
+        }
+        console.log("Stream ready!");
+    }
 
     function tryLoad(){
+        if (ready) return;
         attempts++;
 
         stopPlayback();
 
         if (isFlv){
-            // FLV.js playback
             if (flvjs.isSupported()) {
-                flvPlayer = flvjs.createPlayer({ type:"flv", url:url });
+                flvPlayer = flvjs.createPlayer({
+                    type: "flv",
+                    url: url
+                });
+
                 flvPlayer.attachMediaElement(video);
+
+                flvPlayer.on(flvjs.Events.STATISTICS_INFO, () => stopRetry(true));
+                flvPlayer.on(flvjs.Events.LOADING_COMPLETE, () => stopRetry(true));
+
                 flvPlayer.load();
-                flvPlayer.play()
-                    .then(()=>{ showLoading(false); })
-                    .catch(()=>{});
+                flvPlayer.play().catch(()=>{});
             }
         } else {
-            // HLS direct
             video.src = url;
-            video.play().then(()=> showLoading(false)).catch(()=>{});
+            video.play()
+                 .then(()=> stopRetry(true))
+                 .catch(()=>{});
         }
 
-        // Detect playback success
-        setTimeout(()=>{
-            if (!video.paused && !video.ended && video.currentTime > 0){
-                showLoading(false);
-                return;
+        // Backup detection
+        intervalCheck = setInterval(() => {
+            if (video.currentTime > 0 && !video.paused && !video.ended) {
+                stopRetry(true);
             }
-            if (attempts < 30){
+        }, 300);
+
+        // Retry schedule
+        setTimeout(() => {
+            if (ready) return;
+
+            if (attempts < 30) {
                 console.log("Retry:", attempts);
-                setTimeout(tryLoad, 1000);
+                tryLoad();
             } else {
+                clearInterval(intervalCheck);
                 showLoading(false);
-                alert("تعذّر تشغيل الفيديو. حاول مرة أخرى.");
+                errorBox.textContent = "⚠ تعذّر تشغيل الفيديو. الرجاء المحاولة بعد قليل.";
+                errorBox.style.display = "block";
             }
-        }, 800);
+
+        }, 1200);
     }
 
     tryLoad();
@@ -188,6 +259,13 @@ function playVideo(filename, deviceId, imei){
 
     // Tell camera to prepare the video
     fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
+
+    // Prepare download link
+    currentDownloadUrl = isSafari
+        ? `https://${STREAM_HOST}/live/0/${imei}.m3u8`
+        : `https://${STREAM_HOST}/live/0/${imei}.flv`;
+
+    document.getElementById("downloadBtn").style.display = "none";
 
     // Safari → HLS
     if (isSafari){
