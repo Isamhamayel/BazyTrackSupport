@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>BazyGo – مُشغّل التسجيلات</title>
+<title>BazyGo – مشغل التسجيلات</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -10,7 +10,7 @@
 body { margin:0; font-family:'Tahoma', Arial; background:#f7f7f7; color:#333; }
 
 header {
-    background:#ffffff;
+    background:white;
     padding:15px;
     font-size:20px;
     font-weight:bold;
@@ -98,9 +98,8 @@ header {
 
 #loadingOverlay {
     position:absolute;
-    top:0; left:0; right:0;
-    height:100%;
-    background:rgba(255,255,255,0.85);
+    top:0; left:0; right:0; bottom:0;
+    background:rgba(255,255,255,0.90);
     display:none;
     justify-content:center;
     align-items:center;
@@ -126,7 +125,6 @@ header {
     .player-area {
         flex:0 0 50%;
         height:100vh;
-        position:sticky;
     }
     .file-list {
         flex:0 0 50%;
@@ -144,11 +142,11 @@ header {
 
 <body>
 
-<header>🎥 مشغّل التسجيلات – BazyGo</header>
+<header>🎥 مشغل التسجيلات – BazyGo</header>
 
 <div class="container">
 
-    <!-- PLAYER + FILTERS -->
+    <!-- PLAYER AREA -->
     <div class="player-area">
         <div style="position:relative;">
             <video id="videoPlayer" controls playsinline></video>
@@ -195,57 +193,70 @@ let cameraFilter = 1;
 /* ------------------------------------------
    UI HELPERS
 --------------------------------------------*/
-function showLoading(flag){
-    document.getElementById("loadingOverlay").style.display = flag ? "flex" : "none";
+function showLoading(state){
+    document.getElementById("loadingOverlay").style.display = state ? "flex" : "none";
 }
 
 function stopPlayback(){
-    const v = document.getElementById("videoPlayer");
-    v.pause();
-    v.removeAttribute("src");
-    v.srcObject = null;
-    v.load();
+    const video = document.getElementById("videoPlayer");
+    video.pause();
+    video.removeAttribute("src");
+    video.srcObject = null;
+    video.load();
 }
 
 /* ------------------------------------------
-   PLAYBACK SELECTOR (FLV or HLS)
+   RETRY PLAYBACK UNTIL STREAM IS READY
+--------------------------------------------*/
+function retryPlay(url){
+    const video = document.getElementById("videoPlayer");
+    let attempts = 0;
+
+    function tryLoad(){
+        attempts++;
+
+        // Reset before retry
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+        video.src = url;
+
+        video.play()
+        .then(() => {
+            console.log("Stream ready!");
+            showLoading(false);
+        })
+        .catch(err => {
+            console.log("Retry", attempts, "stream not ready…");
+
+            if (attempts < 30) {
+                setTimeout(tryLoad, 1000);  // retry in 1 second
+            } else {
+                showLoading(false);
+                alert("تعذّر تشغيل الفيديو. حاول مرة أخرى.");
+            }
+        });
+    }
+
+    tryLoad();
+}
+
+/* ------------------------------------------
+   PLAY VIDEO (FLV or HLS)
 --------------------------------------------*/
 function playVideo(filename, deviceId, imei){
     stopPlayback();
     showLoading(true);
 
-    // Tell camera to prepare playback stream
+    // Tell camera to prepare playback
     fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
 
-    if (isSafari) {
-        // Safari → HLS
-        const url = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-        playHLS(url);
-    } else {
-        // Chrome / Android / Windows → HTTP-FLV
-        const url = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-        playFLV(url);
-    }
-}
+    // Build playback URL
+    const url = isSafari
+        ? `https://${STREAM_HOST}/live/0/${imei}.m3u8`
+        : `https://${STREAM_HOST}/live/0/${imei}.flv`;
 
-/* ------------------------------------------
-   FLV playback (direct HTTP-FLV)
---------------------------------------------*/
-function playFLV(url){
-    const video = document.getElementById("videoPlayer");
-    video.src = url;
-    video.play().catch(()=>{});
-    showLoading(false);
-}
-
-/* ------------------------------------------
-   HLS playback (Safari only)
---------------------------------------------*/
-function playHLS(url){
-    const video = document.getElementById("videoPlayer");
-    video.src = url;
-    video.play().catch(()=>{});
-    showLoading(false);
+    retryPlay(url);
 }
 
 /* ------------------------------------------
@@ -311,7 +322,7 @@ async function loadFiles(){
             let c = r.c;
             if (!c) return;
 
-            const raw = c[0].f; 
+            const raw = c[0].f;
             const [mdy, t] = raw.split(" ");
             const [M,D,Y] = mdy.split("/");
 
@@ -339,7 +350,7 @@ async function loadFiles(){
         output.forEach(v=>{
             fileList.innerHTML += `
                 <div class="file-item"
-                    onclick="playVideo('${v.filename}','${v.deviceId}','${v.imei}')">
+                     onclick="playVideo('${v.filename}','${v.deviceId}','${v.imei}')">
                     <div class="time-label">${v.filename}</div>
                     <b>${v.time}</b>
                 </div>
