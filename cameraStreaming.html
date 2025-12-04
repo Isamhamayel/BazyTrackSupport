@@ -4,57 +4,140 @@
 <meta charset="UTF-8">
 <title>BazyGo – Video Player</title>
 
+<!-- Make it fit mobile screen -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <!-- HLS.js for Android/PC -->
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
-  body { margin:0; font-family:Arial; background:#f2f2f2; }
-  .container { display:flex; height:100vh; }
+  * { box-sizing: border-box; }
 
-  @media (max-width: 768px) {
-    .container { flex-direction: column; height:auto; }
-    .left, .right { width:100%; height:auto; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    background: #f2f2f2;
   }
 
-  .left {
-    width:45%; background:white; border-right:2px solid #ddd;
-    padding:15px; overflow-y:auto; box-sizing:border-box;
+  /* Main page wrapper: top fixed area + scrollable file list */
+  .page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* full screen */
+    width: 100vw;
   }
 
-  .right {
-    width:55%; padding:20px; box-sizing:border-box;
-    background:#fafafa;
+  /* Top panel: options + cam buttons + video */
+  .top-panel {
+    background: #ffffff;
+    padding: 12px;
+    border-bottom: 2px solid #ddd;
+    flex: 0 0 auto; /* fixed height, no scroll */
   }
 
-  .file {
-    background:#f9f9f9; padding:10px; margin:6px 0;
-    border-radius:6px; border:1px solid #ddd; cursor:pointer;
+  .top-panel h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
   }
-  .file:hover { background:#ececec; }
 
-  .time-label { font-size:12px; color:#666; }
-
-  .cam-btn {
-    padding:4px 10px; border:1px solid #999; margin-right:6px; border-radius:4px;
-    cursor:pointer; font-size:13px;
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
   }
-  .cam-btn.active { background:#2196F3; color:white; }
+
+  .controls label {
+    font-size: 13px;
+    margin-right: 4px;
+  }
 
   .controls select,
   .controls input[type="date"] {
-    padding:5px; margin-right:8px; margin-bottom:10px;
+    padding: 5px;
+    font-size: 13px;
   }
-</style>
 
+  .cam-buttons {
+    margin: 6px 0 10px 0;
+  }
+
+  .cam-btn {
+    padding: 4px 10px;
+    border: 1px solid #999;
+    margin-right: 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+  .cam-btn.active {
+    background: #2196F3;
+    color: white;
+  }
+
+  /* Video player */
+  #player {
+    width: 100%;
+    height: auto;
+    background: black;
+    max-height: 60vh;
+    border-radius: 8px;
+  }
+
+  /* Scrollable file list area */
+  .file-panel {
+    flex: 1 1 auto;          /* take remaining height */
+    overflow-y: auto;        /* scroll only here */
+    padding: 10px 12px;
+    background: #fafafa;
+  }
+
+  .file {
+    background: #f9f9f9;
+    padding: 10px;
+    margin: 6px 0;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    cursor: pointer;
+  }
+  .file:hover {
+    background: #ececec;
+  }
+
+  .time-label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  /* A bit nicer on larger screens */
+  @media (min-width: 900px) {
+    .top-panel {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .file-panel {
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+    }
+  }
+
+</style>
 </head>
 
 <body>
 
-<div class="container">
+<div class="page">
 
-  <!-- LEFT SIDE -->
-  <div class="left">
-    <h3>📁 قائمة الفيديوهات</h3>
+  <!-- TOP: options + cam buttons + video -->
+  <div class="top-panel">
+    <h3>🎥 BazyGo – المشغّل</h3>
 
     <div class="controls">
       <label>الجهاز:</label>
@@ -67,28 +150,23 @@
       <select id="hourPicker" onchange="loadFiles()"></select>
     </div>
 
-    <div>
+    <div class="cam-buttons">
       <span id="c1" class="cam-btn active" onclick="setCam(1)">كاميرا 1</span>
       <span id="c2" class="cam-btn" onclick="setCam(2)">كاميرا 2</span>
       <span id="cAll" class="cam-btn" onclick="setCam('all')">الكل</span>
     </div>
 
-    <hr>
-
-    <div id="fileList"><i>اختر الفلاتر...</i></div>
-  </div>
-
-  <!-- RIGHT SIDE -->
-  <div class="right">
-    <h3>🎥 المشغّل</h3>
     <video id="player"
-           width="100%"
-           height="auto"
            controls
            muted
-           playsinline
-           style="background:black; max-height:60vh; border-radius:8px;">
+           playsinline>
     </video>
+  </div>
+
+  <!-- BOTTOM: scrollable file list -->
+  <div class="file-panel">
+    <h4>📁 قائمة الفيديوهات</h4>
+    <div id="fileList"><i>اختر الجهاز، التاريخ، والساعة...</i></div>
   </div>
 
 </div>
@@ -183,7 +261,7 @@ async function loadFiles() {
       const cols = r.c;
       if (!cols) return;
 
-      const raw = cols[0].f;
+      const raw = cols[0].f; // "MM/DD/YYYY HH:MM:SS"
       const [mdy, time] = raw.split(" ");
       const [M, D, Y] = mdy.split("/");
 
@@ -242,11 +320,12 @@ function stopPlayer() {
   video.load();
 }
 
-// Click handler
+// When user clicks a file
 function playVideo(fname, deviceId, imei) {
 
-  stopPlayer(); // CLEAR previous playback
+  stopPlayer(); // clear previous playback
 
+  // tell camera to start playback
   fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${fname}`);
 
   const stream = `https://streaming.bazytrack.jo/live/0/${imei}/index.m3u8`;
@@ -255,7 +334,7 @@ function playVideo(fname, deviceId, imei) {
   checkStream(stream, video);
 }
 
-// Retry every 1 sec until stream exists
+// Retry every 1 second until the HLS stream is ready
 function checkStream(url, video) {
   fetch(url, { method: "HEAD" })
     .then(res => {
@@ -270,17 +349,17 @@ function checkStream(url, video) {
     });
 }
 
-// Start playback
+// Start playback depending on platform
 function startPlayback(url, video) {
 
-  // Native iOS Safari HLS
+  // iOS / Safari: native HLS support
   if (video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = url;
-    video.play().catch(err => console.log("iOS autoplay error", err));
+    video.play().catch(err => console.log("iOS autoplay error:", err));
     return;
   }
 
-  // HLS.js for Android and PC
+  // Other browsers: Hls.js
   if (Hls.isSupported()) {
     if (window.hls) window.hls.destroy();
 
@@ -293,7 +372,7 @@ function startPlayback(url, video) {
     window.hls.attachMedia(video);
 
     window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(err => console.log("HLS play error", err));
+      video.play().catch(err => console.log("HLS play error:", err));
     });
 
     window.hls.on(Hls.Events.ERROR, (event, data) => {
