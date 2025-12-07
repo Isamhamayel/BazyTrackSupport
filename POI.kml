@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Bazytrack POI Layer</name>
+
+    <!-- Bazytrack Office -->
+    <Placemark>
+      <name>Bazytrack Office</name>
+      <description>Main office location</description>
+      <Point>
+        <coordinates>35.9106,31.9632,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <!-- Customer A -->
+    <Placemark>
+      <name>Customer A</name>
+      <description>Client location</description>
+      <Point>
+        <coordinates>35.9231,31.9520,0</coordinates>
+      </Point>
+    </Placemark>
+
+    <!-- Fuel Station -->
+    <Placemark>
+      <name>Fuel Station 1</name>
+      <description>Fuel station</description>
+      <Point>
+        <coordinates>35.9302,31.9584,0</coordinates>
+      </Point>
+    </Placemark>
+
+  </Document>
+</kml>
