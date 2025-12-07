@@ -1,0 +1,41 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bazytrack Office",
+        "icon": "office",
+        "color": "blue"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [35.9106, 31.9632]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Customer A",
+        "icon": "flag",
+        "color": "green"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [35.9231, 31.9520]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Fuel Station 1",
+        "icon": "fuel",
+        "color": "orange"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [35.9302, 31.9584]
+      }
+    }
+  ]
+}
