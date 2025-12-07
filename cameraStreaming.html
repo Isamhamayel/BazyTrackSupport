@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>BazyGo – مشغل التسجيلات</title>
+<title>BazyGo – مشغل التسجيلات والبث</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <!-- FLV.js للـ Chrome / Android -->
@@ -20,13 +20,31 @@ header {
     border-bottom:1px solid #ddd;
 }
 
+/* Tabs */
+.tabs {
+    display:flex;
+    background:#fff;
+    border-bottom:1px solid #ddd;
+}
+.tab {
+    padding:8px 14px;
+    cursor:pointer;
+    font-size:14px;
+    border-bottom:3px solid transparent;
+}
+.tab.active {
+    border-color:#2196F3;
+    color:#2196F3;
+    font-weight:bold;
+}
+
 /* LAYOUT */
 .container {
     display:flex;
-    height:calc(100vh - 50px);
+    height:calc(100vh - 80px); /* header + tabs */
 }
 
-/* LEFT: FILTERS + FILES */
+/* LEFT: FILTERS + FILES / LIVE CONTROLS */
 .left {
     width:40%;
     background:white;
@@ -71,7 +89,6 @@ header {
     border-color:#2196F3;
 }
 
-/* FILE LIST SCROLL ONLY */
 .file-list {
     flex:1;
     overflow-y:auto;
@@ -97,6 +114,12 @@ header {
     font-size:11px;
     color:#666;
     margin-bottom:4px;
+}
+
+/* LIVE PANEL */
+.live-panel small {
+    font-size:12px;
+    color:#666;
 }
 
 /* RIGHT: VIDEO ثابت بدون Scroll */
@@ -132,7 +155,6 @@ header {
     cursor:pointer;
     font-size:13px;
 }
-
 #downloadBtn:hover {
     background:#218838;
 }
@@ -197,34 +219,56 @@ header {
 
 <body>
 
-<header>🎥 مشغل التسجيلات – BazyGo</header>
+<header>🎥 مشغل التسجيلات والبث – BazyGo</header>
+
+<div class="tabs">
+    <span id="tabHistory" class="tab active" onclick="showTab('history')">التسجيلات</span>
+    <span id="tabLive" class="tab" onclick="showTab('live')">البث المباشر</span>
+</div>
 
 <div class="container">
 
-    <!-- LEFT SIDE: FILTERS + FILES -->
+    <!-- LEFT SIDE -->
     <div class="left">
-        <div class="filters">
-            <select id="deviceSelect" onchange="loadFiles()"></select>
-            <input type="date" id="datePicker" onchange="loadFiles()">
-            <select id="hourPicker" onchange="loadFiles()"></select>
+
+        <!-- HISTORY PANEL -->
+        <div id="historyPanel">
+            <div class="filters">
+                <select id="deviceSelect" onchange="loadFiles()"></select>
+                <input type="date" id="datePicker" onchange="loadFiles()">
+                <select id="hourPicker" onchange="loadFiles()"></select>
+            </div>
+
+            <div class="cam-buttons">
+                <span id="btnC1" class="cam-btn active" onclick="setCam(1)">كاميرا 1</span>
+                <span id="btnC2" class="cam-btn" onclick="setCam(2)">كاميرا 2</span>
+                <span id="btnCAll" class="cam-btn" onclick="setCam('all')">الكل</span>
+            </div>
+
+            <div id="fileList" class="file-list">
+                <i>اختر الجهاز والتاريخ والساعة...</i>
+            </div>
         </div>
 
-        <div class="cam-buttons">
-            <span id="btnC1" class="cam-btn active" onclick="setCam(1)">كاميرا 1</span>
-            <span id="btnC2" class="cam-btn" onclick="setCam(2)">كاميرا 2</span>
-            <span id="btnCAll" class="cam-btn" onclick="setCam('all')">الكل</span>
+        <!-- LIVE PANEL -->
+        <div id="livePanel" class="live-panel" style="display:none;">
+            <div style="margin-bottom:8px;">
+                <label>الجهاز (بث مباشر):</label>
+                <select id="liveDeviceSelect"></select>
+            </div>
+            <div style="margin-bottom:8px;">
+                <button class="cam-btn" onclick="startLive('livein')">📡 بث داخلي (livein)</button>
+                <button class="cam-btn" onclick="startLive('liveout')">📡 بث خارجي (liveout)</button>
+            </div>
+            <small>سيتم تشغيل البث في المشغّل على اليمين. على iPhone قد تحتاج للضغط على الفيديو لبدء التشغيل.</small>
         </div>
 
-        <div id="fileList" class="file-list">
-            <i>اختر الجهاز والتاريخ والساعة...</i>
-        </div>
     </div>
 
-    <!-- RIGHT SIDE: VIDEO -->
+    <!-- RIGHT SIDE -->
     <div class="right">
         <div id="errorMessage"></div>
 
-        <!-- زر تحميل يفتح خارج التطبيق -->
         <button id="downloadBtn" onclick="openExternalDownload()">
             ⬇ فتح ملف FLV في المتصفح
         </button>
@@ -267,6 +311,8 @@ const ua = navigator.userAgent;
 const isIOS    = /iPad|iPhone|iPod/.test(ua);
 const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
 
+let currentTab = 'history';
+
 let cameraFilter = 1;
 let flvPlayer = null;
 
@@ -276,6 +322,15 @@ let deviceImeis = {}; // deviceId -> imei
 let currentDownloadUrl = "";
 
 /* ===================== HELPERS ===================== */
+function showTab(tab){
+    currentTab = tab;
+    document.getElementById("tabHistory").classList.toggle("active", tab === "history");
+    document.getElementById("tabLive").classList.toggle("active", tab === "live");
+
+    document.getElementById("historyPanel").style.display = (tab === "history") ? "block" : "none";
+    document.getElementById("livePanel").style.display    = (tab === "live")    ? "block" : "none";
+}
+
 function showLoading(flag){
     document.getElementById("loadingOverlay").style.display = flag ? "flex" : "none";
 }
@@ -310,37 +365,34 @@ function manualPlayInIOS(){
     v.play().catch(()=>{});
 }
 
-/* فتح رابط التحميل خارج تطبيق Traccar (إن أمكن) */
+/* فتح رابط التحميل خارج تطبيق Traccar قدر الإمكان */
 function openExternalDownload() {
     if (!currentDownloadUrl) return;
 
     const url = currentDownloadUrl;
-
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(ua);
+    const isiOS     = /iPhone|iPad|iPod/i.test(ua);
 
     if (isAndroid) {
-        // محاولة فتح Chrome مباشرة
+        // نحاول إجبار Chrome
         window.location.href = "googlechrome://navigate?url=" + url;
 
-        // في حال لم ينجح نعيد المحاولة بطريقة أخرى
+        // لو فشل نرجع نفتح الرابط نفسه
         setTimeout(() => {
-            window.location.href = url; 
+            window.location.href = url;
         }, 800);
 
         return;
     }
 
-    if (isIOS) {
-        // iPhone → Safari
+    if (isiOS) {
         window.location.href = url;
         return;
     }
 
-    // الويب العادي
+    // للويب العادي
     window.open(url, "_blank");
 }
-
 
 /* ===================== LOAD DEVICES SHEET ===================== */
 async function loadDeviceNames() {
@@ -382,6 +434,7 @@ function retryPlay(url, isFlv){
 
     showError("");
     btn.style.display = "none";
+    showLoading(true);
 
     function stopRetry(success){
         ready = true;
@@ -416,7 +469,6 @@ function retryPlay(url, isFlv){
             }
 
         } else {
-            // HLS
             video.src = url;
             video.play().then(()=> stopRetry(true)).catch(()=>{});
         }
@@ -444,7 +496,7 @@ function retryPlay(url, isFlv){
     tryLoad();
 }
 
-/* ===================== PLAY VIDEO ===================== */
+/* ===================== PLAYBACK – HISTORY FILE ===================== */
 function playVideo(filename, deviceId){
     stopPlayback();
     showLoading(true);
@@ -457,19 +509,19 @@ function playVideo(filename, deviceId){
         return;
     }
 
-    // أمر تشغيل للكاميرا عبر Google Script
-    fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
+    // أمر تشغيل playback للكاميرا
+    fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`)
+        .catch(()=>{});
 
-    // رابط FLV دائماً للتحميل
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+
     currentDownloadUrl = flvUrl;
     document.getElementById("downloadBtn").style.display = "none";
 
     const video = document.getElementById("videoPlayer");
 
-    // iOS WebView: HLS فقط + بدون retry أو autoplay
     if (isIOS){
-        const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
         showLoading(false);
         video.src = hlsUrl;
         showError("📱 على الآيفون: اضغط على الفيديو للتشغيل. إذا لم يعمل فوراً انتظر ثوانٍ ثم اضغط مرة أخرى.");
@@ -477,19 +529,62 @@ function playVideo(filename, deviceId){
         return;
     }
 
-    // المتصفحات الأخرى:
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-
     if (isSafari){
-        // Safari على Mac مثلاً → HLS مع retry
         retryPlay(hlsUrl, false);
     } else {
-        // Chrome / Android WebView → FLV
         retryPlay(flvUrl, true);
     }
 }
 
-/* ===================== CAMERA FILTER ===================== */
+/* ===================== LIVE STREAM ===================== */
+function playLiveStream(imei){
+    stopPlayback();
+    showError("");
+
+    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+
+    currentDownloadUrl = flvUrl;
+    document.getElementById("downloadBtn").style.display = "none";
+
+    const video = document.getElementById("videoPlayer");
+
+    if (isIOS){
+        showLoading(false);
+        video.src = hlsUrl;
+        showError("📡 بث مباشر: على الآيفون اضغط على الفيديو لبدء التشغيل. إذا لم يعمل انتظر قليلاً ثم اضغط مرة أخرى.");
+        document.getElementById("downloadBtn").style.display = "inline-block";
+        return;
+    }
+
+    if (isSafari){
+        retryPlay(hlsUrl, false);
+    } else {
+        retryPlay(flvUrl, true);
+    }
+}
+
+/* زر البث في تبويب Live */
+function startLive(kind){
+    const liveSelect = document.getElementById("liveDeviceSelect");
+    const deviceId = liveSelect.value;
+
+    if (!deviceId || !deviceImeis[deviceId]){
+        showError("اختر جهازاً مزوداً بكاميرا من تبويب البث المباشر.");
+        return;
+    }
+
+    showError("");
+
+    // إرسال أمر livein أو liveout إلى Google Script
+    fetch(`${WEBAPP_URL}?type=${kind}&deviceId=${deviceId}`)
+        .catch(()=>{});
+
+    const imei = deviceImeis[deviceId];
+    playLiveStream(imei);
+}
+
+/* ===================== CAMERA FILTER (History) ===================== */
 function setCam(c){
     cameraFilter = c;
     btnC1.classList.toggle("active", c===1);
@@ -512,17 +607,25 @@ async function loadDeviceDropdown() {
                     .map(x => x.trim())
                     .filter(Boolean);
 
-    deviceSelect.innerHTML = "";
+    const mainSelect = document.getElementById("deviceSelect");
+    const liveSelect = document.getElementById("liveDeviceSelect");
+
+    mainSelect.innerHTML = "";
+    liveSelect.innerHTML = "";
 
     ids.forEach(id => {
-        // نعرض فقط الأجهزة المعروفة في شيت Devices
-        if (!deviceNames[id]) return;
+        if (!deviceNames[id]) return; // نعرض فقط الأجهزة المعرفة في Devices
         const name = deviceNames[id];
-        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
+
+        mainSelect.innerHTML += `<option value="${id}">${name}</option>`;
+        liveSelect.innerHTML += `<option value="${id}">${name}</option>`;
     });
 
-    if (!deviceSelect.innerHTML.trim()){
-        deviceSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
+    if (!mainSelect.innerHTML.trim()){
+        mainSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
+    }
+    if (!liveSelect.innerHTML.trim()){
+        liveSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
     }
 }
 
@@ -569,7 +672,6 @@ async function loadFiles(){
 
             if (d2 !== date || hh !== hour) return;
 
-            // كاميرا رقم؟
             const camVal = c[4]?.v;
             if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
 
@@ -602,7 +704,9 @@ async function loadFiles(){
 }
 
 /* ===================== INIT ===================== */
-loadDeviceDropdown();
+showTab('history');   // تبويب التسجيلات أولاً
+loadDeviceDropdown(); // تحميل الأجهزة من شيت Devices
+
 </script>
 
 </body>
