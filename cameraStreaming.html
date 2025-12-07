@@ -320,19 +320,24 @@ function openExternalDownload() {
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
     if (isAndroid) {
-        // إجبار فتح المتصفح خارجيًا (Chrome)
-        window.location.href =
-            `intent:${url}#Intent;package=com.android.chrome;scheme=https;launchFlags=268435456;end;`;
+        // محاولة فتح Chrome مباشرة
+        window.location.href = "googlechrome://navigate?url=" + url;
+
+        // في حال لم ينجح نعيد المحاولة بطريقة أخرى
+        setTimeout(() => {
+            window.location.href = url; 
+        }, 800);
+
         return;
     }
 
     if (isIOS) {
-        // iPhone → Safari فقط
+        // iPhone → Safari
         window.location.href = url;
         return;
     }
 
-    // للويب العادي
+    // الويب العادي
     window.open(url, "_blank");
 }
 
