@@ -1,184 +1,583 @@
 <!DOCTYPE html>
-<html dir="rtl" lang="ar">
+<html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<title>BazyGo – مشغل التسجيلات</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>BazyTrack – Playback</title>
-
+<!-- FLV.js للـ Chrome / Android -->
 <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
 
 <style>
-body {
-    margin:0;
-    font-family:Tahoma, Arial;
-    background:#f2f2f2;
+* { box-sizing:border-box; }
+body { margin:0; font-family:'Tahoma',Arial; background:#f7f7f7; }
+
+header {
+    padding:10px 15px;
+    background:white;
+    font-size:18px;
+    font-weight:bold;
+    border-bottom:1px solid #ddd;
 }
 
-/* PAGE LAYOUT */
+/* LAYOUT */
 .container {
     display:flex;
-    height:100vh;
+    height:calc(100vh - 50px);
 }
 
-/* LEFT SIDE – FILES */
+/* LEFT: FILTERS + FILES */
 .left {
     width:40%;
     background:white;
-    border-left:2px solid #ddd;
-    overflow-y:auto;
-    padding:12px;
-}
-
-.file {
+    border-left:1px solid #ddd;
     padding:10px;
-    background:#fafafa;
-    margin-bottom:8px;
-    border:1px solid #ddd;
-    border-radius:6px;
-    cursor:pointer;
-}
-.file:hover {
-    background:#e7f2ff;
-}
-
-/* RIGHT SIDE – VIDEO */
-.right {
-    width:60%;
-    background:#fff;
-    padding:12px;
-    position:relative;
     display:flex;
     flex-direction:column;
+    overflow:hidden;
+}
+
+.filters {
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:8px;
+}
+
+.filters select,
+.filters input[type=date] {
+    padding:6px;
+    border-radius:6px;
+    border:1px solid #ccc;
+    font-size:13px;
+}
+
+.cam-buttons {
+    margin-bottom:8px;
+}
+
+.cam-btn {
+    padding:5px 10px;
+    border-radius:6px;
+    border:1px solid #aaa;
+    cursor:pointer;
+    margin-left:6px;
+    background:#fafafa;
+    font-size:12px;
+}
+.cam-btn.active {
+    background:#2196F3;
+    color:white;
+    border-color:#2196F3;
+}
+
+/* FILE LIST SCROLL ONLY */
+.file-list {
+    flex:1;
+    overflow-y:auto;
+    margin-top:5px;
+}
+
+.file-item {
+    background:#fafafa;
+    padding:10px;
+    margin-bottom:8px;
+    border-radius:6px;
+    border:1px solid #ddd;
+    cursor:pointer;
+    transition:0.15s;
+    font-size:13px;
+}
+.file-item:hover {
+    background:#e7f2ff;
+    border-color:#2196F3;
+}
+
+.time-label {
+    font-size:11px;
+    color:#666;
+    margin-bottom:4px;
+}
+
+/* RIGHT: VIDEO ثابت بدون Scroll */
+.right {
+    width:60%;
+    padding:10px;
+    background:#fdfdfd;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+}
+
+#errorMessage {
+    display:none;
+    padding:8px;
+    background:#ffeded;
+    color:#a00;
+    border:1px solid #dd9999;
+    border-radius:6px;
+    margin-bottom:8px;
+    font-size:13px;
+    text-align:center;
+}
+
+#downloadBtn {
+    display:none;
+    margin-bottom:8px;
+    padding:8px 12px;
+    background:#28a745;
+    color:white;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    font-size:13px;
+}
+
+#downloadBtn:hover {
+    background:#218838;
+}
+
+#videoWrapper {
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
 }
 
 #videoPlayer {
     width:100%;
-    height:70vh;
+    height:100%;
+    max-height:100%;
     background:black;
     border-radius:8px;
 }
 
-/* DOWNLOAD BUTTON */
-#downloadLink {
-    margin-top:10px;
-    padding:10px 15px;
-    background:#28a745;
-    color:white;
-    text-align:center;
-    border-radius:6px;
-    font-size:15px;
+/* LOADING OVERLAY */
+#loadingOverlay {
+    position:absolute;
+    top:0; left:0; right:0; bottom:0;
+    background:rgba(255,255,255,0.9);
     display:none;
-    text-decoration:none;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    border-radius:8px;
 }
 
-/* MOBILE MODE */
+.spinner {
+    width:30px; height:30px;
+    border:4px solid #ccc;
+    border-top:4px solid #2196F3;
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+}
+@keyframes spin { 100% { transform:rotate(360deg); } }
+
+/* MOBILE */
 @media(max-width:900px){
-    .container { flex-direction:column; }
-    .left { width:100%; height:40vh; }
-    .right { width:100%; height:60vh; }
-    #videoPlayer { height:50vh; }
+    .container {
+        flex-direction:column;
+        height:auto;
+    }
+    .left {
+        width:100%;
+        height:45vh;
+    }
+    .right {
+        width:100%;
+        height:55vh;
+    }
+    #videoWrapper {
+        height:100%;
+    }
 }
 </style>
 </head>
 
 <body>
 
+<header>🎥 مشغل التسجيلات – BazyGo</header>
+
 <div class="container">
 
-    <!-- LEFT SIDE -->
+    <!-- LEFT SIDE: FILTERS + FILES -->
     <div class="left">
-        <h3>📁 قائمة الملفات</h3>
-        <div id="fileList">اختر الجهاز والتاريخ...</div>
+        <div class="filters">
+            <select id="deviceSelect" onchange="loadFiles()"></select>
+            <input type="date" id="datePicker" onchange="loadFiles()">
+            <select id="hourPicker" onchange="loadFiles()"></select>
+        </div>
+
+        <div class="cam-buttons">
+            <span id="btnC1" class="cam-btn active" onclick="setCam(1)">كاميرا 1</span>
+            <span id="btnC2" class="cam-btn" onclick="setCam(2)">كاميرا 2</span>
+            <span id="btnCAll" class="cam-btn" onclick="setCam('all')">الكل</span>
+        </div>
+
+        <div id="fileList" class="file-list">
+            <i>اختر الجهاز والتاريخ والساعة...</i>
+        </div>
     </div>
 
-    <!-- RIGHT SIDE -->
+    <!-- RIGHT SIDE: VIDEO -->
     <div class="right">
+        <div id="errorMessage"></div>
 
-        <h3>🎥 المشغّل</h3>
+        <!-- زر تحميل يفتح خارج التطبيق -->
+        <button id="downloadBtn" onclick="openExternalDownload()">
+            ⬇ فتح ملف FLV في المتصفح
+        </button>
 
-        <video id="videoPlayer"
-               controls
-               playsinline
-               webkit-playsinline
-               onclick="manualPlay()">
-        </video>
+        <div id="videoWrapper">
+            <video id="videoPlayer"
+                   controls
+                   playsinline
+                   webkit-playsinline
+                   onclick="manualPlayInIOS()">
+            </video>
 
-        <a id="downloadLink" target="_blank">⬇ تحميل ملف FLV</a>
-
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+                <div style="margin-top:8px;font-size:13px;">جارِ تفعيل الفيديو...</div>
+            </div>
+        </div>
     </div>
 
 </div>
 
-
 <script>
-/* CONFIG */
-const STREAM_HOST = "streaming.bazytrack.jo";
-let currentImei = null;
+/* ===================== CONFIG ===================== */
+const FILE_SHEET_ID   = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+const DEVICE_SHEET_ID = FILE_SHEET_ID; // نفس الملف، شيت باسم Devices
 
-/* Fix iPhone WebView: user must TAP the video to start */
-function manualPlay(){
+const FILE_SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${FILE_SHEET_ID}/gviz/tq?tqx=out:json`;
+
+const DEVICE_SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${DEVICE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=Devices`;
+
+const WEBAPP_URL =
+  "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
+
+const STREAM_HOST = "streaming.bazytrack.jo";
+
+/* ===================== STATE ===================== */
+const ua = navigator.userAgent;
+const isIOS    = /iPad|iPhone|iPod/.test(ua);
+const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
+
+let cameraFilter = 1;
+let flvPlayer = null;
+
+let deviceNames = {}; // deviceId -> name
+let deviceImeis = {}; // deviceId -> imei
+
+let currentDownloadUrl = "";
+
+/* ===================== HELPERS ===================== */
+function showLoading(flag){
+    document.getElementById("loadingOverlay").style.display = flag ? "flex" : "none";
+}
+
+function showError(msg){
+    const box = document.getElementById("errorMessage");
+    if (!msg){
+        box.style.display = "none";
+        box.textContent = "";
+        return;
+    }
+    box.textContent = msg;
+    box.style.display = "block";
+}
+
+function stopPlayback(){
+    const v = document.getElementById("videoPlayer");
+    if (flvPlayer){
+        flvPlayer.destroy();
+        flvPlayer = null;
+    }
+    v.pause();
+    v.removeAttribute("src");
+    v.srcObject = null;
+    v.load();
+}
+
+/* iOS WebView: المستخدم لازم يضغط على الفيديو لتشغيله */
+function manualPlayInIOS(){
+    if (!isIOS) return;
     const v = document.getElementById("videoPlayer");
     v.play().catch(()=>{});
 }
 
-/* STOP any existing playback */
-function stopPlayback(){
-    const v = document.getElementById("videoPlayer");
-    if (window.flvPlayer){
-        window.flvPlayer.destroy();
-        window.flvPlayer = null;
-    }
-    v.pause();
-    v.removeAttribute("src");
-    v.load();
+/* فتح رابط التحميل خارج تطبيق Traccar (إن أمكن) */
+function openExternalDownload(){
+    if (!currentDownloadUrl) return;
+    // WebView في الغالب يفتح المتصفح الافتراضي مع _blank
+    window.open(currentDownloadUrl, "_blank");
 }
 
-/* PLAY VIDEO */
-function playVideo(filename, imei){
+/* ===================== LOAD DEVICES SHEET ===================== */
+async function loadDeviceNames() {
+    const query = "select A,B,C"; // deviceId, imei, name
+    const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
 
-    stopPlayback();
-    currentImei = imei;
+    try {
+        const res = await fetch(url);
+        const txt = await res.text();
+        const json = JSON.parse(txt.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
 
+        rows.forEach(r => {
+            const deviceId = r.c[0]?.v;
+            const imei     = r.c[1]?.v;
+            const name     = r.c[2]?.v;
+
+            if (!deviceId) return;
+
+            deviceNames[deviceId] = name || ("جهاز " + deviceId);
+            deviceImeis[deviceId] = imei;
+        });
+
+        console.log("Device names:", deviceNames);
+
+    } catch(err) {
+        console.error("Error loading device names:", err);
+    }
+}
+
+/* ===================== RETRY PLAY (للـ FLV/HLS) ===================== */
+function retryPlay(url, isFlv){
     const video = document.getElementById("videoPlayer");
-    const download = document.getElementById("downloadLink");
+    const btn   = document.getElementById("downloadBtn");
 
-    // ALWAYS make download link available
-    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-    download.href = flvUrl;
-    download.style.display = "block";
+    let attempts = 0;
+    let intervalCheck = null;
+    let ready = false;
 
-    // Detect iPhone Safari / Traccar iOS WebView
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    showError("");
+    btn.style.display = "none";
 
-    if (isIOS){
-        // iOS MUST use HLS (m3u8)
-        const url = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-        video.src = url;
+    function stopRetry(success){
+        ready = true;
+        clearInterval(intervalCheck);
+        showLoading(false);
 
-        // user MUST tap to start playback
+        if (success){
+            btn.style.display = "inline-block";
+        }
+    }
+
+    function tryLoad(){
+        if (ready) return;
+        attempts++;
+
+        stopPlayback();
+
+        if (isFlv){
+            if (flvjs.isSupported()){
+                flvPlayer = flvjs.createPlayer({
+                    type: "flv",
+                    url: url
+                });
+
+                flvPlayer.attachMediaElement(video);
+
+                flvPlayer.on(flvjs.Events.STATISTICS_INFO, () => stopRetry(true));
+                flvPlayer.on(flvjs.Events.LOADING_COMPLETE, () => stopRetry(true));
+
+                flvPlayer.load();
+                video.play().catch(()=>{});
+            }
+
+        } else {
+            // HLS
+            video.src = url;
+            video.play().then(()=> stopRetry(true)).catch(()=>{});
+        }
+
+        intervalCheck = setInterval(() => {
+            if (video.currentTime > 0 && !video.paused){
+                stopRetry(true);
+            }
+        }, 300);
+
+        setTimeout(() => {
+            if (ready) return;
+
+            if (attempts < 30){
+                console.log("Retry:", attempts);
+                tryLoad();
+            } else {
+                showLoading(false);
+                showError("⚠ تعذّر تشغيل الفيديو. الرجاء المحاولة بعد قليل.");
+                clearInterval(intervalCheck);
+            }
+        }, 1200);
+    }
+
+    tryLoad();
+}
+
+/* ===================== PLAY VIDEO ===================== */
+function playVideo(filename, deviceId){
+    stopPlayback();
+    showLoading(true);
+    showError("");
+
+    const imei = deviceImeis[deviceId];
+    if (!imei){
+        showLoading(false);
+        showError("لا يوجد IMEI معرف لهذا الجهاز في جدول Devices.");
         return;
     }
 
-    // Chrome / Android WebView → FLV
-    if (flvjs.isSupported()){
-        const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-        window.flvPlayer = flvjs.createPlayer({ type:"flv", url: flvUrl });
-        window.flvPlayer.attachMediaElement(video);
-        window.flvPlayer.load();
-        video.play().catch(()=>{});
+    // أمر تشغيل للكاميرا عبر Google Script
+    fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`);
+
+    // رابط FLV دائماً للتحميل
+    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
+    currentDownloadUrl = flvUrl;
+    document.getElementById("downloadBtn").style.display = "none";
+
+    const video = document.getElementById("videoPlayer");
+
+    // iOS WebView: HLS فقط + بدون retry أو autoplay
+    if (isIOS){
+        const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+        showLoading(false);
+        video.src = hlsUrl;
+        showError("📱 على الآيفون: اضغط على الفيديو للتشغيل. إذا لم يعمل فوراً انتظر ثوانٍ ثم اضغط مرة أخرى.");
+        document.getElementById("downloadBtn").style.display = "inline-block";
+        return;
+    }
+
+    // المتصفحات الأخرى:
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+
+    if (isSafari){
+        // Safari على Mac مثلاً → HLS مع retry
+        retryPlay(hlsUrl, false);
+    } else {
+        // Chrome / Android WebView → FLV
+        retryPlay(flvUrl, true);
     }
 }
 
-/* DEMO FILE LOADING — replace with your sheet logic */
-document.getElementById("fileList").innerHTML = `
-    <div class="file" onclick="playVideo('file1','864993060752780')">
-        10:00 – كاميرا 1
-    </div>
-    <div class="file" onclick="playVideo('file2','864993060752780')">
-        11:00 – كاميرا 2
-    </div>
-`;
+/* ===================== CAMERA FILTER ===================== */
+function setCam(c){
+    cameraFilter = c;
+    btnC1.classList.toggle("active", c===1);
+    btnC2.classList.toggle("active", c===2);
+    btnCAll.classList.toggle("active", c==="all");
+    loadFiles();
+}
+
+/* ===================== DEVICE DROPDOWN ===================== */
+async function loadDeviceDropdown() {
+    await loadDeviceNames(); // من شيت Devices
+
+    const params = new URLSearchParams(window.location.search);
+    const decoded = params.get("params")
+        ? JSON.parse(decodeURIComponent(params.get("params")))
+        : {};
+
+    const ids = (decoded["ds16.devices"] || "")
+                    .split(",")
+                    .map(x => x.trim())
+                    .filter(Boolean);
+
+    deviceSelect.innerHTML = "";
+
+    ids.forEach(id => {
+        // نعرض فقط الأجهزة المعروفة في شيت Devices
+        if (!deviceNames[id]) return;
+        const name = deviceNames[id];
+        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
+    });
+
+    if (!deviceSelect.innerHTML.trim()){
+        deviceSelect.innerHTML = `<option>لا يوجد أجهزة معرفة</option>`;
+    }
+}
+
+/* ===================== POPULATE HOURS ===================== */
+for (let h=0; h<24; h++){
+    const hh = h.toString().padStart(2,"0");
+    hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
+}
+
+/* ===================== LOAD FILES FROM MAIN SHEET ===================== */
+async function loadFiles(){
+    const id   = deviceSelect.value;
+    const date = datePicker.value;
+    const hour = hourPicker.value;
+    const fileList = document.getElementById("fileList");
+
+    if (!id || !date || !hour){
+        fileList.innerHTML = "<i>اختر الجهاز والتاريخ والساعة...</i>";
+        return;
+    }
+
+    fileList.innerHTML = "جارِ التحميل...";
+
+    const sql = `select * where G=${id} order by A desc`;
+    const url = FILE_SHEET_URL + "&tq=" + encodeURIComponent(sql);
+
+    try {
+        const text = await (await fetch(url)).text();
+        const json = JSON.parse(text.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
+
+        let output = [];
+
+        rows.forEach(r => {
+            const c = r.c;
+            if (!c) return;
+
+            const raw = c[0].f; // "MM/DD/YYYY HH:mm:ss"
+            const [mdy, t] = raw.split(" ");
+            const [M,D,Y]  = mdy.split("/");
+
+            const d2 = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
+            const hh = t.split(":")[0].padStart(2,"0");
+
+            if (d2 !== date || hh !== hour) return;
+
+            // كاميرا رقم؟
+            const camVal = c[4]?.v;
+            if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
+
+            output.push({
+                time: t,
+                filename: c[2].v,
+                deviceId: c[6].v
+            });
+        });
+
+        if (!output.length){
+            fileList.innerHTML = "لا يوجد ملفات في هذه الساعة.";
+            return;
+        }
+
+        fileList.innerHTML = "";
+        output.forEach(v => {
+            fileList.innerHTML += `
+                <div class="file-item" onclick="playVideo('${v.filename}','${v.deviceId}')">
+                    <div class="time-label">${v.filename}</div>
+                    <b>${v.time}</b>
+                </div>
+            `;
+        });
+
+    } catch(err){
+        console.error(err);
+        fileList.innerHTML = "خطأ في تحميل البيانات.";
+    }
+}
+
+/* ===================== INIT ===================== */
+loadDeviceDropdown();
 </script>
 
 </body>
