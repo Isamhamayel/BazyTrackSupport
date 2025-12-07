@@ -311,11 +311,31 @@ function manualPlayInIOS(){
 }
 
 /* فتح رابط التحميل خارج تطبيق Traccar (إن أمكن) */
-function openExternalDownload(){
+function openExternalDownload() {
     if (!currentDownloadUrl) return;
-    // WebView في الغالب يفتح المتصفح الافتراضي مع _blank
-    window.open(currentDownloadUrl, "_blank");
+
+    const url = currentDownloadUrl;
+
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isAndroid) {
+        // إجبار فتح المتصفح خارجيًا (Chrome)
+        window.location.href =
+            `intent:${url}#Intent;package=com.android.chrome;scheme=https;launchFlags=268435456;end;`;
+        return;
+    }
+
+    if (isIOS) {
+        // iPhone → Safari فقط
+        window.location.href = url;
+        return;
+    }
+
+    // للويب العادي
+    window.open(url, "_blank");
 }
+
 
 /* ===================== LOAD DEVICES SHEET ===================== */
 async function loadDeviceNames() {
