@@ -3,28 +3,48 @@
   <Document>
     <name>Bazytrack POI Layer</name>
 
-    <!-- Bazytrack Office -->
+    <!-- BLUE: Bazytrack Office -->
+    <Style id="bluePoint">
+      <IconStyle>
+        <color>ffff0000</color> <!-- blue -->
+      </IconStyle>
+    </Style>
+
     <Placemark>
       <name>Bazytrack Office</name>
-      <description>Main office location</description>
+      <styleUrl>#bluePoint</styleUrl>
       <Point>
         <coordinates>35.9106,31.9632,0</coordinates>
       </Point>
     </Placemark>
 
-    <!-- Customer A -->
+
+    <!-- GREEN: Customer A -->
+    <Style id="greenPoint">
+      <IconStyle>
+        <color>ff00ff00</color> <!-- green -->
+      </IconStyle>
+    </Style>
+
     <Placemark>
       <name>Customer A</name>
-      <description>Client location</description>
+      <styleUrl>#greenPoint</styleUrl>
       <Point>
         <coordinates>35.9231,31.9520,0</coordinates>
       </Point>
     </Placemark>
 
-    <!-- Fuel Station -->
+
+    <!-- RED: Fuel Station -->
+    <Style id="redPoint">
+      <IconStyle>
+        <color>ff0000ff</color> <!-- red -->
+      </IconStyle>
+    </Style>
+
     <Placemark>
       <name>Fuel Station 1</name>
-      <description>Fuel station</description>
+      <styleUrl>#redPoint</styleUrl>
       <Point>
         <coordinates>35.9302,31.9584,0</coordinates>
       </Point>
