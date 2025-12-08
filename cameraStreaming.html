@@ -510,7 +510,7 @@ function playVideo(filename, deviceId){
     }
 
     // أمر تشغيل playback للكاميرا
-    fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`)
+    fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}&imei=${imei}`)
         .catch(()=>{});
 
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
@@ -575,13 +575,13 @@ function startLive(kind){
     }
 
     showError("");
+    const imei = deviceImeis[deviceId];
 
     // إرسال أمر livein أو liveout إلى Google Script
-    fetch(`${WEBAPP_URL}?type=${kind}&deviceId=${deviceId}`)
+    fetch(`${WEBAPP_URL}?type=${kind}&deviceId=${deviceId}&imei=${imei}`)
         .catch(()=>{});
 
-    const imei = deviceImeis[deviceId];
-    playLiveStream(imei);
+        playLiveStream(imei);
 }
 
 /* ===================== CAMERA FILTER (History) ===================== */
