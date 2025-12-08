@@ -13,14 +13,17 @@
 body { margin:0; font-family:'Tahoma', Arial, sans-serif; background:#f3f4f6; color:#111827; }
 
 header {
-    padding:12px 18px;
-    background:linear-gradient(90deg,#1e3a8a,#2563eb);
-    font-size:18px;
-    font-weight:bold;
-    color:#fff;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
+    padding: 6px 12px;
+    background: linear-gradient(90deg, #1e3a8a, #2563eb);
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    white-space: nowrap;       /* force one line */
+    overflow: hidden;          /* hide overflow */
+    text-overflow: ellipsis;   /* show ... if too long */
 }
 header .sub {
     font-size:12px;
