@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>BazyGo-Media</title>
+<title>BazyGo – مشغل التسجيلات والبث</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <!-- FLV.js -->
@@ -13,20 +13,20 @@
 body { margin:0; font-family:'Tahoma', Arial, sans-serif; background:#f3f4f6; color:#111827; }
 
 header {
-    padding: 6px 12px;
-    background: linear-gradient(90deg, #1e3a8a, #2563eb);
-    font-size: 14px;
-    font-weight: bold;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    white-space: nowrap;       /* force one line */
-    overflow: hidden;          /* hide overflow */
-    text-overflow: ellipsis;   /* show ... if too long */
+    padding:4px 10px;
+    background:linear-gradient(90deg,#1e3a8a,#2563eb);
+    font-size:12px;
+    font-weight:bold;
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
 }
 header .sub {
-    font-size:12px;
+    font-size:11px;
     font-weight:normal;
     opacity:.85;
 }
@@ -37,9 +37,9 @@ header .sub {
     border-bottom:1px solid #e5e7eb;
 }
 .tab {
-    padding:10px 16px;
+    padding:8px 12px;
     cursor:pointer;
-    font-size:14px;
+    font-size:13px;
     border-bottom:3px solid transparent;
     color:#6b7280;
     display:flex;
@@ -55,7 +55,7 @@ header .sub {
 
 .container {
     display:flex;
-    height:calc(100vh - 80px);
+    height:calc(100vh - 60px);
 }
 
 /* LEFT PANEL */
@@ -63,17 +63,17 @@ header .sub {
     width:40%;
     background:#f9fafb;
     border-left:1px solid #e5e7eb;
-    padding:10px;
+    padding:8px;
     display:flex;
     flex-direction:column;
-    gap:10px;
+    gap:8px;
 }
 
 .card {
     background:#fff;
-    border-radius:10px;
+    border-radius:8px;
     box-shadow:0 1px 2px rgba(0,0,0,0.04);
-    padding:10px;
+    padding:8px;
     border:1px solid #e5e7eb;
 }
 
@@ -81,31 +81,31 @@ header .sub {
     display:flex;
     justify-content:space-between;
     align-items:center;
-    margin-bottom:8px;
+    margin-bottom:6px;
 }
 .card-header h3 {
     margin:0;
-    font-size:13px;
+    font-size:12px;
     font-weight:bold;
 }
 .card-header small {
-    font-size:11px;
+    font-size:10px;
     color:#6b7280;
 }
 
 .filters {
     display:flex;
     flex-wrap:wrap;
-    gap:6px;
+    gap:4px;
     margin-bottom:6px;
 }
 
 .filters select,
 .filters input[type=date] {
-    padding:6px 8px;
-    border-radius:8px;
+    padding:4px 6px;
+    border-radius:6px;
     border:1px solid #d1d5db;
-    font-size:12px;
+    font-size:11px;
     background:#f9fafb;
     min-width:90px;
 }
@@ -113,16 +113,16 @@ header .sub {
 .cam-buttons {
     display:flex;
     flex-wrap:wrap;
-    gap:6px;
+    gap:4px;
     margin-bottom:6px;
 }
 .cam-btn {
-    padding:5px 10px;
+    padding:4px 8px;
     border-radius:999px;
     border:1px solid #d1d5db;
     cursor:pointer;
     background:#f9fafb;
-    font-size:11px;
+    font-size:10px;
     display:inline-flex;
     align-items:center;
     gap:4px;
@@ -141,45 +141,45 @@ header .sub {
 
 .file-item {
     background:#f9fafb;
-    padding:9px 10px;
-    margin-bottom:6px;
-    border-radius:8px;
+    padding:7px 8px;
+    margin-bottom:5px;
+    border-radius:6px;
     border:1px solid #e5e7eb;
     cursor:pointer;
     transition:.15s;
-    font-size:12px;
+    font-size:11px;
 }
 .file-item:hover {
     background:#eff6ff;
     border-color:#2563eb;
 }
 .time-label {
-    font-size:11px;
+    font-size:10px;
     color:#6b7280;
-    margin-bottom:2px;
+    margin-bottom:1px;
 }
 
 .info-text {
-    font-size:11px;
+    font-size:10px;
     color:#6b7280;
 }
 
 /* RIGHT PANEL */
 .right {
     width:60%;
-    padding:10px;
+    padding:8px;
     background:#f3f4f6;
     display:flex;
     flex-direction:column;
-    gap:8px;
+    gap:6px;
 }
 
 #statusBar {
-    font-size:11px;
+    font-size:10px;
     color:#374151;
     background:#e5e7eb;
     border-radius:999px;
-    padding:5px 10px;
+    padding:4px 8px;
     display:flex;
     justify-content:space-between;
     align-items:center;
@@ -188,41 +188,38 @@ header .sub {
 #statusText {
     display:flex;
     align-items:center;
-    gap:6px;
+    gap:4px;
 }
 
 .badge {
-    padding:3px 8px;
+    padding:2px 6px;
     border-radius:999px;
-    font-size:10px;
+    font-size:9px;
     background:#d1fae5;
     color:#047857;
 }
 
 .controls-row {
     display:flex;
-    gap:6px;
+    gap:4px;
     flex-wrap:wrap;
 }
 
 .btn {
     border:none;
     border-radius:999px;
-    padding:6px 10px;
-    font-size:11px;
+    padding:5px 8px;
+    font-size:10px;
     cursor:pointer;
     display:inline-flex;
     align-items:center;
-    gap:5px;
+    gap:4px;
     background:#111827;
     color:#fff;
 }
 .btn.secondary {
     background:#e5e7eb;
     color:#111827;
-}
-.btn.danger {
-    background:#b91c1c;
 }
 .btn:disabled {
     opacity:.5;
@@ -231,12 +228,12 @@ header .sub {
 
 #errorMessage {
     display:none;
-    padding:7px 9px;
+    padding:5px 7px;
     background:#fef2f2;
     color:#b91c1c;
-    border:1px solid #fecaca;
-    border-radius:8px;
-    font-size:12px;
+    border:1px solid:#fecaca;
+    border-radius:6px;
+    font-size:10px;
 }
 
 /* VIDEO WRAPPER */
@@ -247,7 +244,7 @@ header .sub {
     align-items:center;
     justify-content:center;
     background:#000;
-    border-radius:12px;
+    border-radius:10px;
     overflow:hidden;
 }
 
@@ -255,7 +252,7 @@ header .sub {
     width:100%;
     height:100%;
     max-height:100%;
-    border-radius:12px;
+    border-radius:10px;
     background:#000;
 }
 
@@ -263,26 +260,26 @@ header .sub {
 #loadingOverlay {
     position:absolute;
     inset:0;
-    background:rgba(17,24,39,0.75);
+    background:rgba(17,24,39,0.8);
     display:none;
     justify-content:center;
     align-items:center;
     flex-direction:column;
     color:#e5e7eb;
-    font-size:13px;
+    font-size:11px;
 }
 .spinner {
-    width:30px; height:30px;
+    width:24px; height:24px;
     border:3px solid rgba(209,213,219,0.6);
     border-top:3px solid #3b82f6;
     border-radius:50%;
     animation:spin .7s linear infinite;
-    margin-bottom:8px;
+    margin-bottom:6px;
 }
 @keyframes spin { 100% { transform:rotate(360deg); } }
 #loadingCountdown {
-    font-size:11px;
-    margin-top:4px;
+    font-size:10px;
+    margin-top:2px;
     color:#9ca3af;
 }
 
@@ -299,8 +296,8 @@ header .sub {
 <body>
 
 <header>
-    <div>🎥BazyGo-Media</div>
-    <div class="sub">بدون صوت · يدعم البث المباشر والتسجيلات</div>
+    <div>🎥 مشغل التسجيلات والبث – BazyGo</div>
+    <div class="sub">FLV للمتصفحات · LL-HLS للآيفون · بدون صوت</div>
 </header>
 
 <div class="tabs">
@@ -317,7 +314,7 @@ header .sub {
         <div id="historyPanel" class="card">
             <div class="card-header">
                 <h3>التسجيلات حسب الجهاز والوقت</h3>
-                <small>اختر الجهاز، التاريخ، والساعة ثم الفيديو</small>
+                <small>اختر الجهاز، التاريخ، والساعة</small>
             </div>
 
             <div class="filters">
@@ -345,7 +342,7 @@ header .sub {
         <div id="livePanel" class="card" style="display:none;">
             <div class="card-header">
                 <h3>البث المباشر</h3>
-                <small>اختيار جهاز ثم نوع الكاميرا</small>
+                <small>اختر جهازاً ثم نوع الكاميرا</small>
             </div>
 
             <div class="filters">
@@ -360,7 +357,7 @@ header .sub {
             </div>
 
             <div class="info-text">
-                في البث المباشر سيتم إعادة الاتصال تلقائياً إذا انقطع البث (حتى ٥ مرات).
+                سيتم إعادة الاتصال تلقائياً إذا انقطع البث (حتى ٥ محاولات).
             </div>
         </div>
 
@@ -372,19 +369,16 @@ header .sub {
         <div id="statusBar">
             <div id="statusText">
                 <span>الحالة:</span>
-                <span id="statusValue">لا يوجد تشغيل حالياً</span>
+                <span id="statusValue">جاهز للاستخدام</span>
             </div>
             <div>
-                <span class="badge" id="modeBadge">جاهز</span>
+                <span class="badge" id="modeBadge">تسجيلات</span>
             </div>
         </div>
 
         <div class="controls-row">
-            <button id="pipBtn" class="btn secondary" type="button">
-                🪟 صورة داخل صورة
-            </button>
             <button id="downloadBtn" class="btn secondary" type="button" onclick="openExternalDownload()" style="display:none;">
-                ⬇ فتح ملف FLV في المتصفح
+                ⬇ فتح FLV في المتصفح
             </button>
         </div>
 
@@ -406,7 +400,7 @@ header .sub {
         </div>
 
         <div class="info-text">
-            ⚠︎ التشغيل يتم بدون صوت دائماً حسب الإعدادات الحالية. على أجهزة iPhone قد تحتاج للضغط على الفيديو لبدء التشغيل.
+            ⚠︎ التشغيل بدون صوت دائماً. على أجهزة iPhone قد تحتاج للضغط على الفيديو لبدء التشغيل.
         </div>
     </div>
 
@@ -415,11 +409,10 @@ header .sub {
 <script>
 /* ===================== CONFIG ===================== */
 const FILE_SHEET_ID   = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
-const DEVICE_SHEET_ID = FILE_SHEET_ID; // نفس الملف، شيت باسم Devices
+const DEVICE_SHEET_ID = FILE_SHEET_ID;
 
 const FILE_SHEET_URL =
   `https://docs.google.com/spreadsheets/d/${FILE_SHEET_ID}/gviz/tq?tqx=out:json`;
-
 const DEVICE_SHEET_URL =
   `https://docs.google.com/spreadsheets/d/${DEVICE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=Devices`;
 
@@ -436,11 +429,11 @@ const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
 let cameraFilter = 1;
 let flvPlayer = null;
 
-let deviceNames = {}; // deviceId -> name
-let deviceImeis = {}; // deviceId -> imei
+let deviceNames = {};
+let deviceImeis = {};
 
 let currentDownloadUrl = "";
-let lastStream = null; // { imei, isHls, mode: 'live'|'history', meta:{} }
+let lastStream = null;
 let liveReconnectAttempts = 0;
 const MAX_LIVE_RECONNECTS = 5;
 let reconnectTimeoutId = null;
@@ -454,7 +447,6 @@ const errorMessage     = document.getElementById("errorMessage");
 const statusValue      = document.getElementById("statusValue");
 const modeBadge        = document.getElementById("modeBadge");
 const downloadBtn      = document.getElementById("downloadBtn");
-const pipBtn           = document.getElementById("pipBtn");
 
 const tabHistory       = document.getElementById("tabHistory");
 const tabLive          = document.getElementById("tabLive");
@@ -470,7 +462,7 @@ const btnC1            = document.getElementById("btnC1");
 const btnC2            = document.getElementById("btnC2");
 const btnCAll          = document.getElementById("btnCAll");
 
-/* ===================== BASIC HELPERS ===================== */
+/* ===================== HELPERS ===================== */
 function showTab(tab){
     tabHistory.classList.toggle("active", tab === "history");
     tabLive.classList.toggle("active", tab === "live");
@@ -495,9 +487,7 @@ function setStatus(text){
 function showLoading(flag, text){
     loadingOverlay.style.display = flag ? "flex" : "none";
     if (text) loadingText.textContent = text;
-    if (!flag){
-        loadingCountdown.textContent = "";
-    }
+    if (!flag) loadingCountdown.textContent = "";
 }
 
 function showError(msg){
@@ -523,7 +513,6 @@ function stopPlayback(){
     videoPlayer.removeAttribute("src");
     videoPlayer.srcObject = null;
     videoPlayer.load();
-    // تأكد من كتم الصوت دائماً
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
 }
@@ -541,7 +530,7 @@ function manualPlayInIOS(){
     videoPlayer.play().catch(()=>{});
 }
 
-/* فتح رابط التحميل في متصفح خارجي */
+/* فتح FLV خارج Traccar عند الحاجة */
 function openExternalDownload() {
     if (!currentDownloadUrl) return;
     const url = currentDownloadUrl;
@@ -560,7 +549,7 @@ function openExternalDownload() {
     window.open(url, "_blank");
 }
 
-/* ===================== NEW: WAIT UNTIL STREAM IS READY ===================== */
+/* ===================== WAIT FOR STREAM (HLS LL-HLS .m3u8) ===================== */
 async function waitForStream(url, timeoutMs = 20000){
     const start = Date.now();
     let remaining = Math.ceil(timeoutMs / 1000);
@@ -568,8 +557,9 @@ async function waitForStream(url, timeoutMs = 20000){
     while (Date.now() - start < timeoutMs){
         loadingCountdown.textContent = `التحقق من جاهزية البث… (متبقّي ${remaining} ث)`;
         try {
-            const r = await fetch(url, { method:"HEAD", cache:"no-cache" });
-            if (r.ok){
+            const r = await fetch(url, { method:"GET", cache:"no-cache" });
+            const code = r.status;
+            if (code === 200 || code === 206){
                 loadingCountdown.textContent = "";
                 return true;
             }
@@ -589,6 +579,7 @@ function retryPlay(url, isFlv){
 
     downloadBtn.style.display = "none";
     showLoading(true, "جاري بدء تشغيل الفيديو...");
+    showError("");
 
     function onSuccess(){
         if (finished) return;
@@ -597,7 +588,7 @@ function retryPlay(url, isFlv){
         downloadBtn.style.display = "inline-flex";
         setStatus(lastStream && lastStream.mode === 'live'
                   ? "البث المباشر يعمل الآن"
-                  : "يتم تشغيل التسجيل الآن");
+                  : "التسجيل يعمل الآن");
         if (lastStream && lastStream.mode === 'live'){
             resetLiveReconnect();
         }
@@ -628,7 +619,6 @@ function retryPlay(url, isFlv){
                 flvPlayer.load();
                 v.play().then(onSuccess).catch(()=>{});
             } else {
-                // لو المتصفح لا يدعم FLV نوقف
                 onFailFinal();
                 return;
             }
@@ -649,9 +639,15 @@ function retryPlay(url, isFlv){
     attempt();
 }
 
-/* ===================== PLAY WITH STREAM-READY CHECK ===================== */
-async function playWithWait(imei, isHls, mode, meta){
-    lastStream = { imei, isHls, mode, meta: meta || {} };
+/* ===================== PLAY WITH WAIT (IOS = HLS LL-HLS, OTHERS = FLV) ===================== */
+async function playWithWait(imei, mode, meta){
+    const useHls = isIOS || isSafari;
+    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+
+    const url = useHls ? hlsUrl : flvUrl;
+
+    lastStream = { imei, isHls: useHls, mode, meta: meta || {} };
     if (mode !== 'live') resetLiveReconnect();
 
     stopPlayback();
@@ -661,25 +657,23 @@ async function playWithWait(imei, isHls, mode, meta){
         : "جاري تحضير ملف التسجيل...");
     setStatus("انتظار جاهزية البث من الخادم...");
 
-    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-    const url = isHls ? hlsUrl : flvUrl;
-
-    currentDownloadUrl = flvUrl;
-
-    const ready = await waitForStream(url, 20000);
-
-    if (!ready){
-        showLoading(false);
-        showError("البث غير جاهز بعد. حاول مرة أخرى بعد قليل.");
-        setStatus("البث غير جاهز من الخادم.");
-        return;
+    if (useHls){
+        const ready = await waitForStream(url, 20000);
+        if (!ready){
+            showLoading(false);
+            showError("البث غير جاهز بعد. حاول مرة أخرى بعد قليل.");
+            setStatus("البث غير جاهز من الخادم.");
+            return;
+        }
+        currentDownloadUrl = flvUrl; // للزر الخارجي
+        retryPlay(url, false);
+    } else {
+        currentDownloadUrl = flvUrl;
+        retryPlay(url, true);
     }
-
-    retryPlay(url, !isHls);
 }
 
-/* ===================== PLAYBACK – HISTORY FILE ===================== */
+/* ===================== HISTORY PLAYBACK ===================== */
 async function playVideo(filename, deviceId){
     const imei = deviceImeis[deviceId];
     if (!imei){
@@ -687,7 +681,7 @@ async function playVideo(filename, deviceId){
         return;
     }
 
-    setStatus(`إرسال طلب تشغيل تسجيل (${filename})...`);
+    setStatus(`إرسال أمر تشغيل التسجيل (${filename})...`);
     showError("");
 
     try {
@@ -695,8 +689,7 @@ async function playVideo(filename, deviceId){
             .catch(()=>{});
     } catch(e){}
 
-    const useHls = isIOS || isSafari;
-    playWithWait(imei, useHls, 'history', { filename, deviceId });
+    playWithWait(imei, 'history', { filename, deviceId });
 }
 
 /* ===================== LIVE STREAM ===================== */
@@ -717,12 +710,11 @@ async function startLive(kind){
             .catch(()=>{});
     } catch(e){}
 
-    const useHls = isIOS || isSafari;
-    playWithWait(imei, useHls, 'live', { kind, deviceId });
+    playWithWait(imei, 'live', { kind, deviceId });
 }
 
 /* ===================== AUTO-RECONNECT FOR LIVE ===================== */
-function handleVideoIssue(ev){
+function handleVideoIssue(){
     if (!lastStream || lastStream.mode !== 'live') return;
 
     if (liveReconnectAttempts >= MAX_LIVE_RECONNECTS){
@@ -743,7 +735,7 @@ function handleVideoIssue(ev){
     }
     reconnectTimeoutId = setTimeout(() => {
         if (!lastStream || lastStream.mode !== 'live') return;
-        playWithWait(lastStream.imei, lastStream.isHls, lastStream.mode, lastStream.meta);
+        playWithWait(lastStream.imei, lastStream.mode, lastStream.meta);
     }, 3000);
 }
 
@@ -759,7 +751,7 @@ videoPlayer.addEventListener("volumechange", () => {
     }
 });
 
-/* ===================== CAMERA FILTER (History) ===================== */
+/* ===================== CAMERA FILTER (HISTORY) ===================== */
 function setCam(c){
     cameraFilter = c;
     btnC1.classList.toggle("active", c===1);
@@ -862,10 +854,13 @@ async function loadFiles(){
             const raw = c[0]?.f || c[0]?.v;
             if (!raw) return;
 
-            const [mdy, t] = raw.split(" ");
-            if (!mdy || !t) return;
+            const parts = raw.split(" ");
+            if (parts.length < 2) return;
 
+            const mdy = parts[0];
+            const t   = parts[1];
             const [M,D,Y]  = mdy.split("/");
+
             const d2 = `${Y}-${M.toString().padStart(2,"0")}-${D.toString().padStart(2,"0")}`;
             const hh = t.split(":")[0].padStart(2,"0");
 
@@ -903,23 +898,7 @@ async function loadFiles(){
     }
 }
 
-/* ===================== PICTURE-IN-PICTURE ===================== */
-if (!document.pictureInPictureEnabled){
-    pipBtn.style.display = "none";
-} else {
-    pipBtn.addEventListener("click", async () => {
-        try {
-            if (document.pictureInPictureElement){
-                await document.exitPictureInPicture();
-            } else {
-                await videoPlayer.requestPictureInPicture();
-            }
-        } catch(e){}
-    });
-}
-
 /* ===================== INIT ===================== */
-// تعيين تاريخ اليوم كـ default
 (function setDefaultDate(){
     const today = new Date();
     const yyyy = today.getFullYear();
@@ -929,7 +908,7 @@ if (!document.pictureInPictureEnabled){
 })();
 
 loadDeviceDropdown();
-setStatus("جاهز للاستخدام. اختر جهازاً ثم التسجيل أو البث المباشر.");
+setStatus("جاهز للاستخدام. اختر جهازاً ثم تسجيل أو بث مباشر.");
 
 </script>
 
