@@ -1,196 +1,293 @@
-/* ---------------------------------------------------------
-   GLOBAL VARS
---------------------------------------------------------- */
-let devices = [];
-let allFiles = [];
-let recordingsByHour = {};
-let selectedDeviceId = null;
-let selectedDate = null;
+/* ======================================================
+   CONFIG
+====================================================== */
+const FILE_SHEET_ID   = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+const DEVICE_SHEET_ID = FILE_SHEET_ID;
+
+const FILE_SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${FILE_SHEET_ID}/gviz/tq?tqx=out:json`;
+const DEVICE_SHEET_URL =
+  `https://docs.google.com/spreadsheets/d/${DEVICE_SHEET_ID}/gviz/tq?tqx=out:json&sheet=Devices`;
+
+const WEBAPP_URL =
+  "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
+
+const STREAM_HOST = "streaming.bazytrack.jo";
+
+/* ======================================================
+   GLOBALS
+====================================================== */
+let allFilesForDate = [];
+let lastDeviceIdForDate = null;
+let lastDateForDate = null;
+
+let deviceNames = {};
+let cameraFilter = "all";
 
 let flvPlayer = null;
-let isLiveMode = false;
 
-const WEBAPP_URL = "YOUR_WEBAPP_URL_HERE";   // ضع رابط سكربت Google Apps Script هنا
-const STREAM_HOST = "YOUR_SRS_SERVER";       // ضع رابط السيرفر SRS هنا
+/* === Timeline Structures === */
+let recordingsByHour = {};  // { "08": [12, 13, 20], ... }
 
 /* DOM ELEMENTS */
-const deviceSelector = document.getElementById("deviceSelector");
+const deviceSelect = document.getElementById("deviceSelect");
 const datePicker = document.getElementById("datePicker");
-const loadBtn = document.getElementById("loadBtn");
+const hourPicker = document.getElementById("hourPicker");
+const cameraSelect = document.getElementById("cameraFilter");
+const fileList = document.getElementById("fileList");
 const statusBar = document.getElementById("statusBar");
 const videoPlayer = document.getElementById("videoPlayer");
 
-const hourTimeline = document.getElementById("hourTimeline");
-const minuteWrapper = document.getElementById("minuteTimelineWrapper");
-const minuteTimeline = document.getElementById("minuteTimeline");
+/* ======================================================
+   INIT
+====================================================== */
+window.onload = () => {
+    loadDeviceDropdown();
+};
 
-const fileList = document.getElementById("fileList");
-
-/* ---------------------------------------------------------
-   INITIALIZATION
---------------------------------------------------------- */
-document.addEventListener("DOMContentLoaded", () => {
-    loadDevices();
-    loadBtn.onclick = loadDayFiles;
-});
-
-/* ---------------------------------------------------------
-   LOAD DEVICES
---------------------------------------------------------- */
-async function loadDevices() {
-    const url = WEBAPP_URL + "?type=devices";
-
+/* ======================================================
+   LOAD DEVICE NAMES
+====================================================== */
+async function loadDeviceNames(){
     try {
-        const res = await fetch(url);
-        devices = await res.json();
+        const res = await fetch(DEVICE_SHEET_URL);
+        const text = await res.text();
+        const json = JSON.parse(text.substring(47).slice(0,-2));
 
-        deviceSelector.innerHTML = "";
-        devices.forEach(d => {
-            const opt = document.createElement("option");
-            opt.value = d.deviceId;
-            opt.textContent = `${d.name} (${d.plate || ''})`;
-            deviceSelector.appendChild(opt);
+        deviceNames = {};
+        json.table.rows.forEach(r => {
+            const c = r.c;
+            if (!c) return;
+            const id = c[0]?.v;
+            const name = c[2]?.v;
+            if (id && name) deviceNames[id] = name;
         });
 
-    } catch (e) {
+    } catch (e){
         console.error("Device load error:", e);
     }
 }
 
-/* ---------------------------------------------------------
-   LOAD FILES FOR FULL DAY
---------------------------------------------------------- */
-async function loadDayFiles() {
+/* ======================================================
+   POPULATE DEVICES
+====================================================== */
+async function loadDeviceDropdown() {
+    await loadDeviceNames();
 
-    selectedDeviceId = deviceSelector.value;
-    selectedDate = datePicker.value;
+    deviceSelect.innerHTML = '<option value="">اختر الجهاز</option>';
 
-    if (!selectedDeviceId || !selectedDate) {
-        alert("الرجاء اختيار الجهاز والتاريخ.");
+    for (let id in deviceNames){
+        deviceSelect.innerHTML += `
+        <option value="${id}">${deviceNames[id]}</option>
+        `;
+    }
+
+    // Fill hour dropdown
+    for (let h=0; h<24; h++){
+        const hh = h.toString().padStart(2, "0");
+        hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
+    }
+}
+
+/* ======================================================
+   LOAD FILES FOR ONE DAY
+====================================================== */
+async function loadFiles(){
+    const id   = deviceSelect.value;
+    const date = datePicker.value;
+
+    if (!id || !date){
+        fileList.innerHTML = '<div class="info-text">اختر الجهاز والتاريخ لعرض التسجيلات.</div>';
+        allFilesForDate = [];
+        updateTimelineFiles([]);
         return;
     }
 
-    statusBar.innerText = "تحميل تسجيلات اليوم...";
+    // cache check
+    if (lastDeviceIdForDate === id && lastDateForDate === date && allFilesForDate.length){
+        renderFileListForHour();
+        updateTimelineFiles(allFilesForDate);
+        return;
+    }
 
-    const url =
-        `${WEBAPP_URL}?type=files&deviceId=${selectedDeviceId}&date=${selectedDate}`;
+    fileList.innerHTML = '<div class="info-text">جارِ تحميل قائمة التسجيلات لليوم بالكامل...</div>';
+
+    const sql = `select * where G=${id} order by A`;
+    const url = FILE_SHEET_URL + "&tq=" + encodeURIComponent(sql);
 
     try {
-        const res = await fetch(url);
-        allFiles = await res.json();
+        const text = await (await fetch(url)).text();
+        const json = JSON.parse(text.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
 
-        if (!allFiles.length) {
-            statusBar.innerText = "لا يوجد تسجيلات لهذا اليوم.";
-            hourTimeline.innerHTML = "";
-            minuteTimeline.innerHTML = "";
+        const list = [];
+
+        rows.forEach(r => {
+            const c = r.c;
+            if (!c) return;
+
+            const raw = c[0]?.f || c[0]?.v;
+            if (!raw) return;
+
+            const parts = raw.split(" ");
+            if (parts.length < 2) return;
+
+            const mdy = parts[0];
+            const t   = parts[1];
+
+            const [M, D, Y] = mdy.split("/");
+            const d2 =
+              `${Y}-${M.toString().padStart(2,"0")}-${D.toString().padStart(2,"0")}`;
+
+            if (d2 !== date) return;
+
+            const hh = t.split(":")[0].padStart(2,"0");
+
+            const camVal = c[4]?.v;
+            if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter))
+                return;
+
+            list.push({
+                time: t,
+                filename: c[2]?.v,
+                deviceId: c[6]?.v,
+                hour: hh
+            });
+        });
+
+        allFilesForDate = list;
+        lastDeviceIdForDate = id;
+        lastDateForDate = date;
+
+        if (!list.length){
+            fileList.innerHTML = '<div class="info-text">لا يوجد ملفات في هذا اليوم لهذا الجهاز.</div>';
+            updateTimelineFiles([]);
             return;
         }
 
-        buildRecordingMap();
-        buildHourTimeline();
+        renderFileListForHour();
+        updateTimelineFiles(list);
 
-        statusBar.innerText = "جاهز — اختر ساعة لرؤية التسجيلات.";
-
-    } catch (e) {
-        console.error("File load error:", e);
-        statusBar.innerText = "خطأ في تحميل الملفات.";
+    } catch(err){
+        console.error(err);
+        fileList.innerHTML =
+            '<div class="info-text">حدث خطأ أثناء تحميل البيانات.</div>';
+        updateTimelineFiles([]);
     }
 }
 
-/* ---------------------------------------------------------
-   BUILD recording-by-hour map
---------------------------------------------------------- */
-function buildRecordingMap() {
-    recordingsByHour = {};
+/* ======================================================
+   UPDATE TIMELINE WITH NEW FILES
+====================================================== */
+function updateTimelineFiles(list) {
 
-    allFiles.forEach(f => {
-        const parts = f.time.split(":"); // "08:12:05"
-        const hh = parts[0];
-        const mm = parseInt(parts[1]);
+    recordingsByHour = {};   // reset
 
+    list.forEach(f => {
+        const [hh, mm] = f.time.split(":");
         if (!recordingsByHour[hh]) recordingsByHour[hh] = [];
-        recordingsByHour[hh].push(mm);
+        recordingsByHour[hh].push(parseInt(mm));
     });
+
+    buildHourTimeline();
+    hideMinuteTimeline();
 }
 
-/* ---------------------------------------------------------
-   BUILD HOUR TIMELINE (24 blocks)
---------------------------------------------------------- */
+/* ======================================================
+   BUILD 24-HOUR TIMELINE
+====================================================== */
 function buildHourTimeline() {
-    hourTimeline.innerHTML = "";
+    const el = document.getElementById("hourTimeline");
+    if (!el) return;
+
+    el.innerHTML = "";
 
     for (let h = 0; h < 24; h++) {
-        const hh = h.toString().padStart(2, "0");
+        const hh = h.toString().padStart(2,"0");
+
         const div = document.createElement("div");
         div.className = "hour-block";
 
-        if (recordingsByHour[hh] && recordingsByHour[hh].length > 0) {
-            div.style.background = "#2563eb"; // Blue
-        } else {
-            div.style.background = "#d1d5db"; // Gray
-        }
+        div.style.background =
+            recordingsByHour[hh] && recordingsByHour[hh].length > 0
+                ? "#2563eb"
+                : "#d1d5db";
 
-        div.onclick = () => openHour(hh);
-        hourTimeline.appendChild(div);
+        div.onclick = () => buildMinuteTimeline(hh);
+
+        el.appendChild(div);
     }
 }
 
-/* ---------------------------------------------------------
-   OPEN MINUTES TIMELINE FOR SELECTED HOUR
---------------------------------------------------------- */
-function openHour(hh) {
+/* ======================================================
+   BUILD 60 MINUTE TIMELINE
+====================================================== */
+function buildMinuteTimeline(hh) {
+    const wrap = document.getElementById("minuteTimelineWrapper");
+    const el   = document.getElementById("minuteTimeline");
 
-    // Clear minute timeline
-    minuteTimeline.innerHTML = "";
+    if (!wrap || !el) return;
 
-    // Prepare minute availability
-    const minutesData = new Array(60).fill(false);
-    if (recordingsByHour[hh]) {
-        recordingsByHour[hh].forEach(m => minutesData[m] = true);
+    el.innerHTML = "";
+
+    const minutes = recordingsByHour[hh] || [];
+    const map = new Array(60).fill(false);
+    minutes.forEach(m => map[m] = true);
+
+    for (let m = 0; m < 60; m++) {
+        const d = document.createElement("div");
+        d.className = "minute-block";
+        d.style.background = map[m] ? "#1e40af" : "#e5e7eb";
+
+        d.onclick = () => playFromMinute(hh, m);
+
+        el.appendChild(d);
     }
 
-    // Build minute blocks
-    for (let i = 0; i < 60; i++) {
-        const b = document.createElement("div");
-        b.className = "minute-block";
-
-        b.style.background = minutesData[i] ? "#1e40af" : "#e5e7eb";
-
-        b.onclick = () => playFromMinute(hh, i);
-        minuteTimeline.appendChild(b);
-    }
-
-    // Show minute timeline with slide down
-    minuteWrapper.classList.remove("hidden");
-    minuteWrapper.classList.remove("slide-up");
-    minuteWrapper.classList.add("slide-down");
+    wrap.classList.remove("hidden");
+    wrap.classList.remove("slide-up");
+    wrap.classList.add("slide-down");
 }
 
-/* ---------------------------------------------------------
-   PLAY FROM MINUTE (run replaylist of 5 files)
---------------------------------------------------------- */
+/* ======================================================
+   HIDE MINUTE TIMELINE
+====================================================== */
+function hideMinuteTimeline() {
+    const wrap = document.getElementById("minuteTimelineWrapper");
+    if (!wrap) return;
+
+    wrap.classList.add("slide-up");
+
+    setTimeout(() => {
+        wrap.classList.add("hidden");
+    }, 500);
+}
+
+/* ======================================================
+   PLAY FROM MINUTE (REPLAYLIST OF 5 FILES)
+====================================================== */
 function playFromMinute(hh, mm) {
 
-    // Find file index in allFiles matching this minute EXACT
-    const matchIndex = allFiles.findIndex(f => {
+    const idx = allFilesForDate.findIndex(f => {
         const [h, m] = f.time.split(":");
-        return h == hh && parseInt(m) === mm;
+        return h === hh && parseInt(m) === mm;
     });
 
-    if (matchIndex === -1) {
+    if (idx === -1) {
         alert("لا يوجد ملف يبدأ في هذه الدقيقة.");
         return;
     }
 
-    runReplayList(matchIndex);
+    runReplayList(idx);
 }
 
-/* ---------------------------------------------------------
-   REPLAY LIST (5 FILES)
---------------------------------------------------------- */
-async function runReplayList(startIndex) {
+/* ======================================================
+   BUILD & SEND REPLAYLIST COMMAND
+====================================================== */
+async function runReplayList(index) {
 
-    const files = allFiles.slice(startIndex, startIndex + 5)
+    const files = allFilesForDate
+        .slice(index, index + 5)
         .map(f => f.filename);
 
     if (!files.length) {
@@ -198,85 +295,109 @@ async function runReplayList(startIndex) {
         return;
     }
 
-    statusBar.innerText = "تشغيل التسجيل...";
+    const param = encodeURIComponent(files.join(","));
+    const deviceId = allFilesForDate[index].deviceId;
 
-    const fileParam = encodeURIComponent(files.join(","));
-
-    // Send command to Jimi via Google Apps Script
     const url =
-        `${WEBAPP_URL}?type=playback&deviceId=${selectedDeviceId}&fileName=${fileParam}`;
+      `${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${param}`;
 
-    try {
-        await fetch(url);
-    } catch (e) {
-        console.error("ReplayList send failed:", e);
-    }
+    try { await fetch(url); }
+    catch(e) { console.error("ReplayList send failed:", e); }
 
-    // After sending command, attach FLV
-    playWithWait(selectedDeviceId, "history");
+    playWithWait(deviceId, "history");
 }
 
-/* ---------------------------------------------------------
-   RESET FLV (FIX FREEZING)
---------------------------------------------------------- */
-function resetFlvPlayer() {
+/* ======================================================
+   RESET FLV.JS (FIX FREEZE)
+====================================================== */
+function resetFlvPlayer(){
     try {
         if (flvPlayer) {
             flvPlayer.pause();
             flvPlayer.unload();
             flvPlayer.destroy();
         }
-    } catch (e) {}
+    } catch(e){}
 
     flvPlayer = null;
-
     videoPlayer.pause();
     videoPlayer.removeAttribute("src");
     videoPlayer.src = "";
     videoPlayer.load();
 }
 
-/* ---------------------------------------------------------
-   PLAY (LIVE / HISTORY)
---------------------------------------------------------- */
-function playWithWait(deviceId, mode = "live") {
-
-    isLiveMode = (mode === "live");
+/* ======================================================
+   PLAY (LIVE OR HISTORY)
+====================================================== */
+function playWithWait(deviceId, mode="live") {
 
     resetFlvPlayer();
 
-    statusBar.innerText = mode === "live"
-        ? "بث مباشر..."
-        : "تشغيل تسجيل...";
-
-    // Jimi IMEI is same as deviceId for simplicity (يمكنك تعديله)
-    const imei = deviceId;
-
     const flvUrl =
-        `https://${STREAM_HOST}/live/0/${imei}.flv?_=${Date.now()}`;
+      `https://${STREAM_HOST}/live/0/${deviceId}.flv?_=${Date.now()}`;
 
     setTimeout(() => {
+
         if (flvjs.isSupported()) {
-            flvPlayer = flvjs.createPlayer({ type: "flv", url: flvUrl });
+
+            flvPlayer = flvjs.createPlayer({ type:"flv", url: flvUrl });
 
             flvPlayer.attachMediaElement(videoPlayer);
             flvPlayer.load();
             flvPlayer.play();
+
         }
-    }, 600); // delay for ReplayList stability
+
+    }, 600);
 }
 
-/* ---------------------------------------------------------
-   OPTIONAL: PLAY LIVE BUTTON (إذا أردت)
---------------------------------------------------------- */
-function playLive() {
-    playWithWait(deviceSelector.value, "live");
+/* ======================================================
+   FILE LIST RENDERING
+====================================================== */
+function renderFileListForHour(){
+    const hour = hourPicker.value;
+
+    if (!allFilesForDate.length){
+        fileList.innerHTML =
+          '<div class="info-text">لا يوجد تسجيلات لهذا اليوم.</div>';
+        return;
+    }
+
+    let subset = allFilesForDate;
+    if (hour){
+        subset = allFilesForDate.filter(v => v.hour === hour);
+    }
+
+    if (!subset.length){
+        fileList.innerHTML =
+        '<div class="info-text">لا يوجد ملفات في هذه الساعة.</div>';
+        return;
+    }
+
+    fileList.innerHTML = "";
+    subset.forEach(v => {
+        if (!v.filename) return;
+
+        fileList.innerHTML += `
+            <div class="file-item"
+                 onclick="playVideo('${v.filename}','${v.deviceId}')">
+                <div class="time-label">${v.filename}</div>
+                <b>${v.time}</b>
+            </div>
+        `;
+    });
 }
 
-/* ---------------------------------------------------------
-   DEBUG / FILE LIST
---------------------------------------------------------- */
-function updateFileListForHour(hh) {
-    const list = recordingsByHour[hh] || [];
-    fileList.innerHTML = list.map(m => `الدقيقة ${m}`).join("<br>");
+/* ======================================================
+   PLAY SINGLE FILE (OLD BUTTON)
+====================================================== */
+async function playVideo(filename, deviceId){
+    if (!filename) return;
+
+    const url =
+       `${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`;
+
+    try { await fetch(url); } catch(e){}
+
+    playWithWait(deviceId, "history");
 }
