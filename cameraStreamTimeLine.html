@@ -737,7 +737,9 @@ async function playVideo(filename, deviceId){
         return;
     }
 
-    setStatus(`إرسال أمر تشغيل التسجيل (${filename})...`);
+    // نفس أسلوب البث المباشر تماماً
+    setStatus(`إرسال أمر تشغيل التسجيل (${filename}) إلى الجهاز...`);
+    showLoading(true, "جاري إرسال أمر بدء تشغيل التسجيل إلى الجهاز...");
     showError("");
 
     try {
@@ -745,11 +747,10 @@ async function playVideo(filename, deviceId){
             .catch(()=>{});
     } catch(e){}
 
-    playWithWait(imei, 'history', { filename, deviceId });
-
-    
-   
+    // التشغيل يصبح بنفس playWithWait المستخدم للبث
+    playWithWait(imei, "history", { filename, deviceId });
 }
+
 
 /* ===================== LIVE STREAM ===================== */
 async function startLive(kind){
