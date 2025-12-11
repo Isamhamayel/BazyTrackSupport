@@ -535,22 +535,38 @@ function showError(msg){
     }
 }
 
-function stopPlayback(){
-    if (flvPlayer){
-        flvPlayer.destroy();
+function stopPlayback() {
+    // Destroy FLV player safely
+    if (flvPlayer) {
+        try {
+            flvPlayer.pause();
+            flvPlayer.unload();
+            flvPlayer.destroy();
+        } catch (e) {
+            console.warn("FLV destroy error:", e);
+        }
         flvPlayer = null;
     }
-    if (reconnectTimeoutId){
+
+    // Stop any reconnect loops
+    if (reconnectTimeoutId) {
         clearTimeout(reconnectTimeoutId);
         reconnectTimeoutId = null;
     }
-    videoPlayer.pause();
-    videoPlayer.removeAttribute("src");
-    videoPlayer.srcObject = null;
-    videoPlayer.load();
+
+    // Stop HTML video element WITHOUT clearing src
+    try {
+        videoPlayer.pause();
+    } catch (e) {}
+
+    // Reset audio (always muted)
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
+
+    // DO NOT REMOVE SRC — DO NOT RESET srcObject — DO NOT CALL load()
+    // These break FLV.js reattachment in Chrome
 }
+
 function resetPlayback(){
     try {
         if (flvPlayer){
@@ -564,9 +580,6 @@ function resetPlayback(){
 
     try {
         videoPlayer.pause();
-        videoPlayer.removeAttribute("src");
-        videoPlayer.src = "";
-        videoPlayer.load();
     } catch(e){}
 }
 
