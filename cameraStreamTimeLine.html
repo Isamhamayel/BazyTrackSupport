@@ -1,51 +1,344 @@
-async function playWithWait(imei, mode, meta){
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
 
-    setStatus("تحضير الفيديو...");
-    showLoading(true, "جاري بدء تشغيل الفيديو...");
+<head>
+    <meta charset="UTF-8" />
+    <title>BazyTrack – Camera Playback</title>
+    <style>
+        body {
+            font-family: Tahoma, sans-serif;
+            background: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
 
-    // RESET كامل
-    await resetPlayback();
+        .header {
+            padding: 15px;
+            background: #1f2937;
+            color: white;
+            text-align: center;
+        }
 
-    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv?_=${Date.now()}`;
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8?_=${Date.now()}`;
+        #statusBar {
+            margin-top: 5px;
+            background: #374151;
+            padding: 6px 12px;
+            border-radius: 6px;
+            display: inline-block;
+            font-size: 14px;
+            color: #d1d5db;
+        }
 
-    const isHls = isIOS || isSafari;
+        .controls {
+            background: white;
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            border-bottom: 1px solid #ccc;
+        }
 
-    // 🤚🔥 أهم خطوة: الانتظار 1 ثانية حتى يبدأ stream فعلياً
-    await new Promise(res => setTimeout(res, 1000));
+        select,
+        input[type="date"] {
+            padding: 6px;
+            font-size: 14px;
+        }
 
-    // HLS
-    if (isHls){
-        videoPlayer.src = hlsUrl;
-        videoPlayer.play().catch(()=>{});
-        showLoading(false);
-        return;
-    }
+        button {
+            padding: 6px 15px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
 
-    // FLV
-    if (flvjs.isSupported()){
+        #videoPlayer {
+            width: 96%;
+            margin: 10px auto;
+            display: block;
+            max-height: 480px;
+            background: black;
+        }
 
-        flvPlayer = flvjs.createPlayer({
-            type: 'flv',
-            url : flvUrl,
-            isLive: false,
-            enableStashBuffer: false,
-            autoCleanupSourceBuffer: true
-        });
+        /* Slider */
+        #timelineContainer {
+            width: 96%;
+            margin: 15px auto;
+            padding: 10px;
+            background: #fff;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
 
-        flvPlayer.attachMediaElement(videoPlayer);
+        #timeline {
+            width: 100%;
+        }
 
-        // عند وصول metadata = stream جاهز
-        flvPlayer.on(flvjs.Events.METADATA_ARRIVED, () => {
-            console.log("Metadata Arrived → Start Video");
-            showLoading(false);
-            videoPlayer.play().catch(()=>{});
-        });
+        #timelineLabel {
+            margin-top: 8px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 14px;
+            color: #1e3a8a;
+        }
 
-        flvPlayer.on(flvjs.Events.ERROR, (type, detail) => {
-            console.warn("FLV ERROR:", type, detail);
-        });
+        #fileList {
+            width: 96%;
+            margin: 15px auto;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+    </style>
 
-        flvPlayer.load();
-    }
-}
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@latest/dist/flv.min.js"></script>
+</head>
+
+<body>
+
+    <div class="header">
+        <h2>BazyTrack – Smart Playback</h2>
+        <div id="statusBar">جاهز</div>
+    </div>
+
+    <div class="controls">
+        <label>الجهاز:</label>
+        <select id="deviceSelect"></select>
+
+        <label>التاريخ:</label>
+        <input type="date" id="datePicker">
+
+        <label>الكاميرا:</label>
+        <select id="cameraFilter">
+            <option value="all">الكل</option>
+            <option value="1">كاميرا 1</option>
+            <option value="2">كاميرا 2</option>
+        </select>
+
+        <button onclick="loadFiles()">تحميل</button>
+    </div>
+
+    <video id="videoPlayer" controls autoplay muted></video>
+
+    <div id="timelineContainer">
+        <input type="range" id="timeline" min="0" max="100" value="0" />
+        <div id="timelineLabel"></div>
+    </div>
+
+    <div id="fileList"></div>
+
+    <script>
+        /* ===========================================
+           GLOBALS
+        ============================================ */
+        const STREAM_HOST = "streaming.bazytrack.jo";
+        const FILE_SHEET_ID = "1GjVH6jlTGf7BEBqld0GEX1yMqUgfQc235g64CWdNyUM";
+        const FILE_SHEET_URL =
+            `https://docs.google.com/spreadsheets/d/${FILE_SHEET_ID}/gviz/tq?tqx=out:json`;
+        const WEBAPP_URL =
+            "https://script.google.com/macros/s/AKfycbwwI70vwtzhZtzChTG7WzF-UvQIHm0z2iXNH70wYzB0vjgodvsT3ciHcaN0MohSmeMW/exec";
+
+        let allFilesForDate = [];
+        let flvPlayer = null;
+        let lastDeviceIdForDate = null;
+        let lastDateForDate = null;
+
+        const videoPlayer = document.getElementById("videoPlayer");
+        const timeline = document.getElementById("timeline");
+        const timelineLabel = document.getElementById("timelineLabel");
+        const fileList = document.getElementById("fileList");
+
+        /* ===========================================
+           STATUS / LOADING
+        ============================================ */
+        function setStatus(msg) {
+            document.getElementById("statusBar").innerText = msg;
+        }
+
+        function showLoading(state, msg = "") {
+            if (state) setStatus(msg || "جاري التحميل...");
+        }
+
+        /* ===========================================
+           RESET PLAYBACK (IMPORTANT)
+        ============================================ */
+        function resetPlayback() {
+            try {
+                if (flvPlayer) {
+                    flvPlayer.pause();
+                    flvPlayer.unload();
+                    flvPlayer.destroy();
+                }
+            } catch (e) { }
+
+            flvPlayer = null;
+
+            try {
+                videoPlayer.pause();
+                videoPlayer.removeAttribute("src");
+                videoPlayer.src = "";
+                videoPlayer.load();
+            } catch (e) { }
+
+            return new Promise((r) => setTimeout(r, 200));
+        }
+
+        /* ===========================================
+           LOAD FILES FROM GOOGLE SHEETS
+        ============================================ */
+        async function loadFiles() {
+            const deviceId = deviceSelect.value;
+            const date = datePicker.value;
+            const filterCam = cameraFilter.value;
+
+            if (!deviceId || !date) {
+                fileList.innerHTML = "اختر الجهاز والتاريخ.";
+                return;
+            }
+
+            const sql = `select * where G=${deviceId} order by A`;
+            const url = FILE_SHEET_URL + "&tq=" + encodeURIComponent(sql);
+
+            const text = await (await fetch(url)).text();
+            const json = JSON.parse(text.substring(47).slice(0, -2));
+            const rows = json.table.rows || [];
+
+            const list = [];
+
+            rows.forEach(r => {
+                const c = r.c;
+                if (!c) return;
+
+                const raw = c[0]?.f || c[0]?.v;
+                if (!raw) return;
+
+                const [mdy, time] = raw.split(" ");
+                const [M, D, Y] = mdy.split("/");
+
+                const d2 = `${Y}-${M.padStart(2, "0")}-${D.padStart(2, "0")}`;
+                if (d2 !== date) return;
+
+                const cam = c[4]?.v;
+                if (filterCam !== "all" && String(cam) !== filterCam) return;
+
+                list.push({
+                    time,
+                    filename: c[2]?.v,
+                    deviceId: c[6]?.v
+                });
+            });
+
+            allFilesForDate = list;
+            renderFiles(list);
+            updateTimeline(list);
+        }
+
+        /* ===========================================
+           RENDER FILES
+        ============================================ */
+        function renderFiles(list) {
+            if (!list.length) {
+                fileList.innerHTML = "لا يوجد ملفات.";
+                return;
+            }
+
+            fileList.innerHTML = "";
+
+            list.forEach(f => {
+                fileList.innerHTML += `
+                    <div onclick="playFile('${f.filename}', '${f.deviceId}')">
+                        <b>${f.time}</b> — ${f.filename}
+                    </div>`;
+            });
+        }
+
+        function updateTimeline(list) {
+            if (!list.length) {
+                timeline.value = 0;
+                timelineLabel.innerText = "";
+                return;
+            }
+
+            timeline.max = list.length - 1;
+            timeline.value = 0;
+            timelineLabel.innerText = list[0].time;
+        }
+
+        timeline.oninput = function () {
+            const index = parseInt(timeline.value);
+            const f = allFilesForDate[index];
+            if (!f) return;
+
+            timelineLabel.innerText = f.time;
+        };
+
+        timeline.onchange = function () {
+            const index = parseInt(timeline.value);
+            const f = allFilesForDate[index];
+            if (f) playFile(f.filename, f.deviceId);
+        };
+
+        /* ===========================================
+           PLAY SINGLE FILE
+        ============================================ */
+        async function playFile(filename, deviceId) {
+            const url =
+                `${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${filename}`;
+
+            await fetch(url);
+            playWithWait(deviceId);
+        }
+
+        /* ===========================================
+           🔥 FINAL FIX: PLAY WITH RETRY
+        ============================================ */
+        async function playWithWait(imei) {
+            let retries = 0;
+            let maxRetries = 2;
+
+            async function tryPlay() {
+                setStatus(`جاري التشغيل... (محاولة ${retries + 1})`);
+                showLoading(true);
+
+                await resetPlayback();
+                await new Promise(r => setTimeout(r, 800));
+
+                const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv?_=${Date.now()}`;
+
+                if (flvjs.isSupported()) {
+                    flvPlayer = flvjs.createPlayer({
+                        type: "flv",
+                        url: flvUrl,
+                        isLive: false,
+                        enableStashBuffer: false
+                    });
+
+                    flvPlayer.attachMediaElement(videoPlayer);
+                    flvPlayer.load();
+
+                    let t = setTimeout(async () => {
+                        if (retries < maxRetries) {
+                            retries++;
+                            await tryPlay();
+                        } else {
+                            setStatus("فشل التشغيل.");
+                            showLoading(false);
+                        }
+                    }, 900);
+
+                    flvPlayer.on(flvjs.Events.METADATA_ARRIVED, () => {
+                        clearTimeout(t);
+                        showLoading(false);
+                        videoPlayer.play().catch(() => { });
+                    });
+                }
+            }
+
+            tryPlay();
+        }
+    </script>
+
+</body>
+</html>
