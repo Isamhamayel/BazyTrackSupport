@@ -620,7 +620,7 @@ async function playFLV(url, maxAttempts = 20) {
             } catch(e){}
 
             if (attempt < maxAttempts) {
-                setTimeout(tryPlay, 500);
+                setTimeout(tryPlay, 1000);
             } else {
                 reject(false);
             }
