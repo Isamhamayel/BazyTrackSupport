@@ -515,648 +515,169 @@ function showTab(tab){
 }
 showTab('history');
 
-function setStatus(text){
-    statusValue.textContent = text;
-}
-
-function showLoading(flag, text){
-    loadingOverlay.style.display = flag ? "flex" : "none";
-    if (text) loadingText.textContent = text;
-    if (!flag) loadingCountdown.textContent = "";
-}
-
-function showError(msg){
-    if (!msg){
-        errorMessage.style.display = "none";
-        errorMessage.textContent = "";
-    } else {
-        errorMessage.style.display = "block";
-        errorMessage.textContent = msg;
-    }
-}
-
-    function stopPlayback() {
+/* ===================== CLEAN VIDEO PLAYER ===================== */
+function cleanPlayer() {
+    // Clean FLV player if exists
     if (flvPlayer) {
         try {
             flvPlayer.pause();
             flvPlayer.unload();
+            flvPlayer.detachMediaElement();
             flvPlayer.destroy();
-        } catch(e){ console.warn(e); }
+        } catch (e) {
+            console.warn("FLV cleanup error:", e);
+        }
         flvPlayer = null;
     }
 
+    // Clean reconnect timer
     if (reconnectTimeoutId) {
         clearTimeout(reconnectTimeoutId);
         reconnectTimeoutId = null;
     }
 
+    // Clean HTML video state safely
     try { videoPlayer.pause(); } catch(e){}
+    videoPlayer.removeAttribute("src");
+    videoPlayer.srcObject = null;
+    videoPlayer.load();
+
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
-
-    // ❗ لا تلمس src أو srcObject أو load() إطلاقاً
 }
 
 
-function resetPlayback() {
-    if (flvPlayer) {
-        try {
-            flvPlayer.pause();
-            flvPlayer.unload();
-            flvPlayer.destroy();
-        } catch(e){}
-        flvPlayer = null;
-    }
-}
-
-function resetLiveReconnect(){
-    liveReconnectAttempts = 0;
-    if (reconnectTimeoutId){
-        clearTimeout(reconnectTimeoutId);
-        reconnectTimeoutId = null;
-    }
-}
-
-function manualPlayInIOS(){
-    if (!isIOS) return;
-    videoPlayer.play().catch(()=>{});
-}
-
-/* فتح FLV خارج Traccar عند الحاجة */
-function openExternalDownload() {
-    if (!currentDownloadUrl) return;
-    const url = currentDownloadUrl;
-    const isAndroid = /Android/i.test(ua);
-    const isiOS     = /iPhone|iPad|iPod/i.test(ua);
-
-    if (isAndroid){
-        window.location.href = "googlechrome://navigate?url=" + url;
-        setTimeout(() => { window.location.href = url; }, 800);
-        return;
-    }
-    if (isiOS){
-        window.location.href = url;
-        return;
-    }
-    window.open(url, "_blank");
-}
-
-/* ===================== WAIT FOR STREAM (HLS LL-HLS .m3u8) ===================== */
-async function waitForStream(url, timeoutMs = 20000){
+/* ===================== HLS — SAFARI / iOS ===================== */
+async function waitForHlsReady(url, timeoutMs = 20000) {
     const start = Date.now();
-    let remaining = Math.ceil(timeoutMs / 1000);
 
-    while (Date.now() - start < timeoutMs){
-        loadingCountdown.textContent = `التحقق من جاهزية البث… (متبقّي ${remaining} ث)`;
+    while (Date.now() - start < timeoutMs) {
         try {
-            const r = await fetch(url, { method:"GET", cache:"no-cache" });
-            const code = r.status;
-            if (code === 200 || code === 206){
-                loadingCountdown.textContent = "";
-                return true;
-            }
+            const r = await fetch(url, { cache: "no-store" });
+            if (r.status === 200 || r.status === 206) return true;
         } catch(e){}
-        remaining--;
+
         await new Promise(res => setTimeout(res, 1000));
     }
-    loadingCountdown.textContent = "";
     return false;
 }
 
-/* ===================== RETRY PLAY (FLV / HLS) ===================== */
-function retryPlay(url, isFlv){
-    const v = videoPlayer;
-    let attempts = 0;
-    let finished = false;
 
-    downloadBtn.style.display = "none";
-    showLoading(true, "جاري بدء تشغيل الفيديو...");
-    showError("");
-
-    function onSuccess(){
-        if (finished) return;
-        finished = true;
-        showLoading(false);
-        downloadBtn.style.display = "inline-flex";
-        setStatus(lastStream && lastStream.mode === 'live'
-                  ? "البث المباشر يعمل الآن"
-                  : "التسجيل يعمل الآن");
-        if (lastStream && lastStream.mode === 'live'){
-            resetLiveReconnect();
-        }
-    }
-
-    function onFailFinal(){
-        if (finished) return;
-        finished = true;
-        showLoading(false);
-        showError("⚠ تعذّر تشغيل الفيديو بعد عدّة محاولات. جرّب مرة أخرى.");
-        setStatus("فشل التشغيل، حاول إعادة المحاولة.");
-    }
-
-    function attempt(){
-        if (finished) return;
-        attempts++;
-        stopPlayback();
-
-        videoPlayer.muted = true;
-        videoPlayer.volume = 0;
-
-        if (isFlv){
-            if (flvjs.isSupported()){
-                flvPlayer = flvjs.createPlayer({ type:"flv", url });
-                flvPlayer.attachMediaElement(v);
-                flvPlayer.on(flvjs.Events.STATISTICS_INFO, onSuccess);
-                flvPlayer.on(flvjs.Events.LOADING_COMPLETE, onSuccess);
-                flvPlayer.load();
-                v.play().then(onSuccess).catch(()=>{});
-            } else {
-                onFailFinal();
-                return;
-            }
-        } else {
-            v.src = url;
-            v.play().then(onSuccess).catch(()=>{});
-        }
-
-        if (attempts < 25 && !finished){
-            setTimeout(() => {
-                if (!finished) attempt();
-            }, 800);
-        } else if (!finished){
-            onFailFinal();
-        }
-    }
-
-    attempt();
-}
-
-   async function forcePlayFLV(url, maxAttempts = 20) {
-    let attempt = 0;
-
+/* ===================== FLV — RETRY SYSTEM ===================== */
+async function playFLV(url, maxAttempts = 20) {
     return new Promise((resolve, reject) => {
-        async function tryStart() {
+        let attempt = 0;
+
+        async function tryPlay() {
             attempt++;
 
+            // Cleanup before starting
+            cleanPlayer();
             console.log(`FLV attempt ${attempt}`);
 
-            // Destroy old player
-            if (flvPlayer) {
-                try {
-                    flvPlayer.pause();
-                    flvPlayer.unload();
-                    flvPlayer.destroy();
-                } catch(e){}
-            }
-            flvPlayer = null;
-
             try {
-                // Create new FLV player
-                flvPlayer = flvjs.createPlayer({ type:"flv", url });
+                flvPlayer = flvjs.createPlayer({ type: "flv", url });
                 flvPlayer.attachMediaElement(videoPlayer);
                 flvPlayer.load();
 
-                // Try play()
-                videoPlayer.play().then(() => {
-                    console.log("FLV running!");
-                    resolve(true);
-                    return;
-                }).catch(() => {});
+                videoPlayer.play()
+                    .then(() => resolve(true))
+                    .catch(() => {});
             } catch(e){}
 
-            // Retry
             if (attempt < maxAttempts) {
-                setTimeout(tryStart, 400);
+                setTimeout(tryPlay, 500);
             } else {
                 reject(false);
             }
         }
 
-        tryStart();
+        tryPlay();
     });
 }
 
-    
-/* ===================== PLAY WITH WAIT (IOS = HLS LL-HLS, OTHERS = FLV) ===================== */
-async function playWithWait(imei, mode, meta){
-    const useHls = isIOS || isSafari;
+
+/* ===================== UNIFIED PLAY FUNCTION ===================== */
+async function playWithWait(imei, mode, meta = {}) {
+    const isHls = isIOS || isSafari;
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
     const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+    const url = isHls ? hlsUrl : flvUrl;
 
-    const url = useHls ? hlsUrl : flvUrl;
-    resetPlayback();
-    lastStream = { imei, isHls: useHls, mode, meta: meta || {} };
-    if (mode !== 'live') resetLiveReconnect();
-    
-    stopPlayback();
+    lastStream = { imei, mode, isHls, meta };
+
+    cleanPlayer();
     showError("");
-    showLoading(true, mode === 'live'
-        ? "جاري تحضير البث المباشر..."
-        : "جاري تحضير ملف التسجيل...");
-    setStatus("انتظار جاهزية البث من الخادم...");
+    showLoading(true, mode === "live" ? "جاري تهيئة البث..." : "جاري تهيئة التسجيل...");
+    setStatus("انتظار جاهزية البث...");
 
-    if (useHls){
-        const ready = await waitForStream(url, 20000);
-        if (!ready){
+    /* ------- HLS MODE ------- */
+    if (isHls) {
+        const ready = await waitForHlsReady(url, 20000);
+
+        if (!ready) {
             showLoading(false);
-            showError("البث غير جاهز بعد. حاول مرة أخرى بعد قليل.");
-            setStatus("البث غير جاهز من الخادم.");
+            showError("البث غير جاهز حالياً. حاول لاحقاً.");
+            setStatus("تعذر تشغيل HLS");
             return;
         }
-        currentDownloadUrl = flvUrl; // للزر الخارجي
-        retryPlay(url, false);
-    } else {
-        currentDownloadUrl = flvUrl;
-        stopPlayback();
-        
-        forcePlayFLV(flvUrl, 20)
+
+        cleanPlayer();
+        videoPlayer.src = url;
+        videoPlayer.load();
+
+        videoPlayer.play()
             .then(() => {
                 showLoading(false);
-                showError("");
-                setStatus("التسجيل يعمل الآن");
+                setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
             })
             .catch(() => {
                 showLoading(false);
-                showError("⚠ لم يبدأ التشغيل رغم المحاولات. جرّب مرة أخرى.");
-                setStatus("فشل تشغيل التسجيل");
+                showError("لم يبدأ التشغيل. اضغط على الفيديو يدوياً (iOS).");
+                setStatus("زر التشغيل مطلوب");
             });
 
-
-    }
-
-
-}
-
-/* ===================== HISTORY PLAYBACK ===================== */
-async function playVideo(filename, deviceId){
-    const imei = deviceImeis[deviceId];
-    if (!imei){
-        showError("لا يوجد IMEI معرف لهذا الجهاز في جدول Devices.");
         return;
     }
 
-    setStatus(`إرسال أمر تشغيل التسجيل (${filename}) إلى الجهاز...`);
-    showLoading(true, "جاري إرسال أمر بدء تشغيل التسجيل إلى الجهاز...");
-    showError("");
 
+    /* ------- FLV MODE ------- */
     try {
-        await fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${encodeURIComponent(filename)}&imei=${imei}`)
-            .catch(()=>{});
-    } catch(e){}
+        await playFLV(flvUrl, 20);
 
-    // 🔥 إضافة 3 ثواني قبل البدء بالتشغيل
-    setTimeout(() => {
-        playWithWait(imei, "history", { filename, deviceId });
-    }, 5000);
-}
-
-
-
-/* ===================== LIVE STREAM ===================== */
-async function startLive(kind){
-    const deviceId = liveDeviceSelect.value;
-    if (!deviceId || !deviceImeis[deviceId]){
-        showError("اختر جهازاً مزوداً بكاميرا من تبويب البث المباشر.");
-        return;
+        showLoading(false);
+        showError("");
+        setStatus(mode === "live" ? "البث يعمل الآن" : "التسجيل يعمل الآن");
+    } catch (e) {
+        showLoading(false);
+        showError("⚠ فشل تشغيل الفيديو بعد عدة محاولات.");
+        setStatus("فشل FLV");
     }
-
-    const imei = deviceImeis[deviceId];
-    showError("");
-    setStatus(`إرسال أمر ${kind} إلى الجهاز...`);
-    showLoading(true, "جاري إرسال أمر بدء البث إلى الجهاز...");
-
-    try {
-        await fetch(`${WEBAPP_URL}?type=${kind}&deviceId=${deviceId}&imei=${imei}`)
-            .catch(()=>{});
-    } catch(e){}
-
-    playWithWait(imei, 'live', { kind, deviceId });
 }
+
 
 /* ===================== AUTO-RECONNECT FOR LIVE ===================== */
-function handleVideoIssue(){
-    if (!lastStream || lastStream.mode !== 'live') return;
+videoPlayer.addEventListener("error", tryReconnect);
+videoPlayer.addEventListener("stalled", tryReconnect);
 
-    if (liveReconnectAttempts >= MAX_LIVE_RECONNECTS){
-        showError("انقطع البث المباشر بعد عدّة محاولات لإعادة الاتصال.");
-        setStatus("تم إيقاف محاولة إعادة الاتصال التلقائي.");
+function tryReconnect() {
+    if (!lastStream || lastStream.mode !== "live") return;
+
+    if (liveReconnectAttempts >= MAX_LIVE_RECONNECTS) {
+        showError("انقطع البث نهائياً بعد عدة محاولات.");
+        setStatus("تم إيقاف إعادة الاتصال");
         return;
     }
 
     liveReconnectAttempts++;
-    const attemptNo = liveReconnectAttempts;
+    setStatus(`إعادة محاولة الاتصال... (${liveReconnectAttempts}/${MAX_LIVE_RECONNECTS})`);
+    showLoading(true, "محاولة إعادة اتصال...");
 
-    showError("");
-    showLoading(true, `انقطع البث، إعادة المحاولة (${attemptNo}/${MAX_LIVE_RECONNECTS})...`);
-    setStatus(`إعادة محاولة الاتصال بالبث المباشر (${attemptNo}/${MAX_LIVE_RECONNECTS})...`);
-
-    if (reconnectTimeoutId){
-        clearTimeout(reconnectTimeoutId);
-    }
     reconnectTimeoutId = setTimeout(() => {
-        if (!lastStream || lastStream.mode !== 'live') return;
-        playWithWait(lastStream.imei, lastStream.mode, lastStream.meta);
+        playWithWait(lastStream.imei, "live", lastStream.meta);
     }, 3000);
 }
 
-videoPlayer.addEventListener("ended", handleVideoIssue);
-videoPlayer.addEventListener("error", handleVideoIssue);
-videoPlayer.addEventListener("stalled", handleVideoIssue);
-
-/* إجبار كتم الصوت دائماً */
-videoPlayer.addEventListener("volumechange", () => {
-    if (!videoPlayer.muted || videoPlayer.volume !== 0){
-        videoPlayer.muted = true;
-        videoPlayer.volume = 0;
-    }
-});
-
-/* ===================== PLAYLIST SYSTEM (5 FILES) + TIMELINE ===================== */
-
-function updateTimelineFiles(list){
-    // list = all files in selected date (filtered by camera)
-    allFilesForDate = list || [];
-    if (!timelineSlider || !timelineLabel) return;
-
-    if (!allFilesForDate.length){
-        timelineSlider.min = 0;
-        timelineSlider.max = 0;
-        timelineSlider.value = 0;
-        timelineLabel.textContent = "لا يوجد تسجيلات لهذا اليوم.";
-   
-        return;
-    }
-
-    timelineSlider.min = 0;
-    timelineSlider.max = allFilesForDate.length - 1;
-    timelineSlider.value = 0;
-
-    const f0 = allFilesForDate[0];
-    timelineLabel.textContent = `(${f0.filename}) - (${f0.time})`;
-}
-
-function timelineDragging(){
-    const idx = parseInt(timelineSlider.value, 10);
-    updateTimelineLabelForIndex(idx);
-}
-
-function updateTimelineLabelForIndex(idx){
-    if (!allFilesForDate.length || !allFilesForDate[idx]){
-        timelineLabel.textContent = "لا يوجد تسجيل لهذا الموضع.";
-        return;
-    }
-    const f = allFilesForDate[idx];
-    timelineLabel.textContent = `(${f.filename}) - (${f.time})`;
-}
-
-// عند إفلات المؤشر: اختر الملف وبناء قائمة تشغيل من ٥ ملفات
-async function timelineDropped() {
-    const idx = parseInt(timelineSlider.value, 10);
-    if (!allFilesForDate.length || !allFilesForDate[idx]) return;
-
-    const selected = allFilesForDate[idx];
-
-    // تحديث الساعة حسب الملف
-    hourPicker.value = selected.hour;
-    renderFileListForHour();
-
-    // أخذ 5 ملفات بدءاً من الملف الحالي
-    const files = allFilesForDate.slice(idx, idx + 5).map(f => f.filename);
-
-    // تحويلها إلى قائمة مفصولة بفواصل
-    const fileListString = files.join(",");
-
-    const imei = deviceImeis[selected.deviceId];
-
-    // إرسال ReplayList (باستخدام playback)
-    try {
-        await fetch(`${WEBAPP_URL}?type=playback&deviceId=${selected.deviceId}&fileName=${encodeURIComponent(fileListString)}&imei=${imei}`);
-    } catch (e) {}
-
-    // تشغيل البث القادم من الكاميرا
-    playWithWait(imei, "history", { files });
-}
-
-
-function playPlaylistItem(){
-    const item = playlist[currentPlaylistIndex];
-    if (!item) return;
-    playVideo(item.filename, item.deviceId);
-}
-
-// عند نهاية التسجيل: شغّل التالي من قائمة التشغيل (للتسجيلات فقط)
-videoPlayer.addEventListener("ended", () => {
-    if (lastStream && lastStream.mode === 'live') return;
-    if (playlist && currentPlaylistIndex < playlist.length - 1){
-        currentPlaylistIndex++;
-        playPlaylistItem();
-    }
-});
-
-
-
-
-/* ===================== CAMERA FILTER (HISTORY) ===================== */
-function setCam(c){
-    cameraFilter = c;
-    btnC1.classList.toggle("active", c===1);
-    btnC2.classList.toggle("active", c===2);
-    btnCAll.classList.toggle("active", c==="all");
-
-    // إعادة تحميل البيانات لليوم الحالي مع الفلتر الجديد
-    lastDeviceIdForDate = null;
-    allFilesForDate = [];
-    loadFiles();
-}
-
-/* ===================== DEVICE SHEET LOADING ===================== */
-async function loadDeviceNames() {
-    const query = "select A,B,C"; // deviceId, imei, name
-    const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
-
-    try {
-        const res = await fetch(url);
-        const txt = await res.text();
-        const json = JSON.parse(txt.substring(47).slice(0,-2));
-        const rows = json.table.rows || [];
-
-        rows.forEach(r => {
-            const deviceId = r.c[0]?.v;
-            const imei     = r.c[1]?.v;
-            const name     = r.c[2]?.v;
-
-            if (!deviceId) return;
-
-            deviceNames[deviceId] = name || ("جهاز " + deviceId);
-            deviceImeis[deviceId] = imei;
-        });
-
-    } catch(err) {
-        console.error("Error loading device names:", err);
-    }
-}
-
-/* ===================== DEVICE DROPDOWNS ===================== */
-async function loadDeviceDropdown() {
-    await loadDeviceNames();
-
-    const params = new URLSearchParams(window.location.search);
-    const decoded = params.get("params")
-        ? JSON.parse(decodeURIComponent(params.get("params")))
-        : {};
-
-    const ids = (decoded["ds16.devices"] || "")
-                    .split(",")
-                    .map(x => x.trim())
-                    .filter(Boolean);
-
-    deviceSelect.innerHTML = '<option value="">اختر الجهاز</option>';
-    liveDeviceSelect.innerHTML = '<option value="">اختر جهاز البث</option>';
-
-    ids.forEach(id => {
-        if (!deviceNames[id]) return;
-        const name = deviceNames[id];
-
-        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
-        liveDeviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
-    });
-
-    if (!ids.length){
-        deviceSelect.innerHTML = '<option value="">لا يوجد أجهزة معرفة</option>';
-        liveDeviceSelect.innerHTML = '<option value="">لا يوجد أجهزة معرفة</option>';
-    }
-}
-
-/* ===================== POPULATE HOURS ===================== */
-for (let h=0; h<24; h++){
-    const hh = h.toString().padStart(2,"0");
-    hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
-}
-
-/* ===================== RENDER FILE LIST FOR CURRENT HOUR ===================== */
-function renderFileListForHour(){
-    const hour = hourPicker.value;
-
-    if (!allFilesForDate.length){
-        fileList.innerHTML = '<div class="info-text">لا يوجد تسجيلات لهذا اليوم.</div>';
-        return;
-    }
-
-    let subset = allFilesForDate;
-    if (hour){
-        subset = allFilesForDate.filter(v => v.hour === hour);
-    }
-
-    if (!subset.length){
-        fileList.innerHTML = '<div class="info-text">لا يوجد ملفات في هذه الساعة لهذا الجهاز.</div>';
-        return;
-    }
-
-    fileList.innerHTML = "";
-    subset.forEach(v => {
-        if (!v.filename) return;
-        fileList.innerHTML += `
-            <div class="file-item" onclick="playVideo('${v.filename}','${v.deviceId}')">
-                <div class="time-label">${v.filename}</div>
-                <b>${v.time}</b>
-            </div>
-        `;
-    });
-}
-
-/* ===================== LOAD FILES FROM MAIN SHEET (FULL DAY) ===================== */
-async function loadFiles(){
-    const id   = deviceSelect.value;
-    const date = datePicker.value;
-    const hour = hourPicker.value; // فقط لعرض القائمة، ليس لجلب البيانات
-
-    if (!id || !date){
-        fileList.innerHTML = '<div class="info-text">اختر الجهاز والتاريخ لعرض التسجيلات.</div>';
-        allFilesForDate = [];
-        updateTimelineFiles([]);
-        return;
-    }
-
-    // لو نفس الجهاز ونفس التاريخ، استخدم الكاش الموجود
-    if (lastDeviceIdForDate === id && lastDateForDate === date && allFilesForDate.length){
-        renderFileListForHour();
-        updateTimelineFiles(allFilesForDate);
-        return;
-    }
-
-    fileList.innerHTML = '<div class="info-text">جارِ تحميل قائمة التسجيلات لليوم بالكامل...</div>';
-
-    const sql = `select * where G=${id} order by A`; // كل اليوم لهذا الجهاز
-    const url = FILE_SHEET_URL + "&tq=" + encodeURIComponent(sql);
-
-    try {
-        const text = await (await fetch(url)).text();
-        const json = JSON.parse(text.substring(47).slice(0,-2));
-        const rows = json.table.rows || [];
-
-        const list = [];
-
-        rows.forEach(r => {
-            const c = r.c;
-            if (!c) return;
-
-            const raw = c[0]?.f || c[0]?.v;
-            if (!raw) return;
-
-            const parts = raw.split(" ");
-            if (parts.length < 2) return;
-
-            const mdy = parts[0];
-            const t   = parts[1];
-            const [M,D,Y]  = mdy.split("/");
-
-            const d2 = `${Y}-${M.toString().padStart(2,"0")}-${D.toString().padStart(2,"0")}`;
-            if (d2 !== date) return;
-
-            const hh = t.split(":")[0].padStart(2,"0");
-
-            const camVal = c[4]?.v;
-            if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
-
-            list.push({
-                time: t,
-                filename: c[2]?.v,
-                deviceId: c[6]?.v,
-                hour: hh
-            });
-        });
-
-        allFilesForDate = list;
-        lastDeviceIdForDate = id;
-        lastDateForDate = date;
-
-        if (!list.length){
-            fileList.innerHTML = '<div class="info-text">لا يوجد ملفات في هذا اليوم لهذا الجهاز.</div>';
-            updateTimelineFiles([]);
-            return;
-        }
-
-        renderFileListForHour();
-        updateTimelineFiles(list);
-
-    } catch(err){
-        console.error(err);
-        fileList.innerHTML = '<div class="info-text">حدث خطأ أثناء تحميل البيانات.</div>';
-        updateTimelineFiles([]);
-    }
-}
-
-/* ===================== INIT ===================== */
-(function setDefaultDate(){
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm   = String(today.getMonth()+1).padStart(2,"0");
-    const dd   = String(today.getDate()).padStart(2,"0");
-    datePicker.value = `${yyyy}-${mm}-${dd}`;
-})();
-
-loadDeviceDropdown();
-setStatus("جاهز للاستخدام. اختر جهازاً ثم تسجيل أو بث مباشر.");
 
 </script>
 
