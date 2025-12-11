@@ -2,56 +2,70 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>BazyGo Playback System</title>
+    <title>BazyTrack – Camera Playback</title>
+
+    <!-- STYLE FILE -->
     <link rel="stylesheet" href="cameraStyle.css">
 
-    <!-- FLV.js for Jimi playback -->
-    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+    <!-- FLV.js For Jimi Playback -->
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@latest/dist/flv.min.js"></script>
 
 </head>
 <body>
 
-    <div class="header">
-        <h2>BazyGo – Smart Playback System</h2>
-        <div id="statusBar" class="status-bar">الوضع: لا شيء</div>
-    </div>
+    <!-- HEADER -->
+    <header class="header">
+        <h2>BazyTrack – Smart Playback System</h2>
+        <div id="statusBar" class="status-bar">الوضع: جاهز</div>
+    </header>
 
-    <div class="controls">
+    <!-- CONTROLS -->
+    <section class="controls">
         <label>الجهاز:</label>
-        <select id="deviceSelector"></select>
+        <select id="deviceSelect"></select>
 
         <label>التاريخ:</label>
         <input type="date" id="datePicker">
 
-        <button id="loadBtn">تحميل تسجيلات اليوم</button>
-    </div>
+        <label>الكاميرا:</label>
+        <select id="cameraFilter">
+            <option value="all">الكل</option>
+            <option value="1">كاميرا 1</option>
+            <option value="2">كاميرا 2</option>
+        </select>
+
+        <label>الساعة:</label>
+        <select id="hourPicker"></select>
+
+        <button onclick="loadFiles()">تحميل</button>
+    </section>
 
     <!-- VIDEO PLAYER -->
-    <div class="video-container">
+    <section class="video-section">
         <video id="videoPlayer" controls autoplay muted></video>
-    </div>
+    </section>
 
-    <!-- TIMELINE AREA -->
-    <div class="timeline-container">
+    <!-- NVR TIMELINE -->
+    <section class="timeline-section">
+        
+        <!-- HOURS TIMELINE -->
+        <div id="hourTimeline" class="hour-timeline"></div>
 
-        <!-- 24 Hour Timeline -->
-        <div id="hourTimeline" class="hour-timeline">
-            <!-- Filled dynamically -->
-        </div>
-
-        <!-- Minute Timeline (Slide Down 500ms) -->
+        <!-- MINUTES TIMELINE -->
         <div id="minuteTimelineWrapper" class="minute-wrapper hidden">
             <div id="minuteTimeline" class="minute-timeline"></div>
         </div>
 
-    </div>
+    </section>
 
-    <!-- FILE LIST (Left side – optional for reference) -->
-    <div class="file-section">
-        <h4>ملفات الساعة المختارة</h4>
+    <!-- FILE LIST -->
+    <section class="file-section">
+        <h3>قائمة الملفات</h3>
         <div id="fileList"></div>
-    </div>
+    </section>
 
-    <script src="cameraScript.js" defer></script>
+    <!-- SCRIPT FILE -->
+    <script src="cameraScript.js"></script>
+
 </body>
 </html>
