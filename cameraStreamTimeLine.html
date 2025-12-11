@@ -602,33 +602,50 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
 async function playFLV(url, maxAttempts = 20) {
     return new Promise((resolve, reject) => {
         let attempt = 0;
+        let stopped = false;   // 🟢 flag to stop retries
 
         async function tryPlay() {
-            attempt++;
+            if (stopped) return;  // 🛑 do NOT retry after success
 
-            cleanPlayer();
-            console.log(`FLV attempt ${attempt}`);
+            attempt++;
+            console.log("FLV attempt:", attempt);
+
+            // Cleanup previous player
+            if (flvPlayer) {
+                try {
+                    flvPlayer.pause();
+                    flvPlayer.unload();
+                    flvPlayer.detachMediaElement();
+                    flvPlayer.destroy();
+                } catch(e){}
+            }
 
             try {
                 flvPlayer = flvjs.createPlayer({ type: "flv", url });
                 flvPlayer.attachMediaElement(videoPlayer);
                 flvPlayer.load();
 
-                videoPlayer.play()
-                    .then(() => resolve(true))
-                    .catch(() => {});
+                videoPlayer.play().then(() => {
+                    console.log("FLV PLAY SUCCESS 🎉");
+                    stopped = true;     // 🛑 stop retrying
+                    resolve(true);
+                }).catch(() => {});
             } catch(e){}
 
-            if (attempt < maxAttempts) {
-                setTimeout(tryPlay, 1250);
-            } else {
-                reject(false);
+            // Retry ONLY if not stopped
+            if (!stopped) {
+                if (attempt < maxAttempts) {
+                    setTimeout(tryPlay, 1250);
+                } else {
+                    reject(false);
+                }
             }
         }
 
         tryPlay();
     });
 }
+
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
