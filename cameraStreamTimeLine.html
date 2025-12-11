@@ -678,6 +678,274 @@ function tryReconnect() {
     }, 3000);
 }
 
+    /* ===================== STATUS + LOADING + ERROR ===================== */
+function setStatus(text){
+    statusValue.textContent = text;
+}
+
+function showLoading(flag, text){
+    loadingOverlay.style.display = flag ? "flex" : "none";
+    if (text) loadingText.textContent = text;
+    if (!flag) loadingCountdown.textContent = "";
+}
+
+function showError(msg){
+    if (!msg){
+        errorMessage.style.display = "none";
+        errorMessage.textContent = "";
+    } else {
+        errorMessage.style.display = "block";
+        errorMessage.textContent = msg;
+    }
+}
+
+
+/* ===================== CAMERA FILTER ===================== */
+function setCam(c){
+    cameraFilter = c;
+    btnC1.classList.toggle("active", c===1);
+    btnC2.classList.toggle("active", c===2);
+    btnCAll.classList.toggle("active", c==="all");
+
+    lastDeviceIdForDate = null;
+    allFilesForDate = [];
+    loadFiles();
+}
+
+
+/* ===================== LOAD DEVICE NAMES ===================== */
+async function loadDeviceNames() {
+    const query = "select A,B,C";
+    const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
+
+    try {
+        const res = await fetch(url);
+        const txt = await res.text();
+        const json = JSON.parse(txt.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
+
+        rows.forEach(r => {
+            const deviceId = r.c[0]?.v;
+            const imei     = r.c[1]?.v;
+            const name     = r.c[2]?.v;
+
+            if (!deviceId) return;
+
+            deviceNames[deviceId] = name || ("جهاز " + deviceId);
+            deviceImeis[deviceId] = imei;
+        });
+
+    } catch(err) {
+        console.error("Error loading device names:", err);
+    }
+}
+
+
+/* ===================== DEVICE DROPDOWNS ===================== */
+async function loadDeviceDropdown() {
+    await loadDeviceNames();
+
+    const params = new URLSearchParams(window.location.search);
+    const decoded = params.get("params")
+        ? JSON.parse(decodeURIComponent(params.get("params")))
+        : {};
+
+    const ids = (decoded["ds16.devices"] || "")
+                    .split(",")
+                    .map(x => x.trim())
+                    .filter(Boolean);
+
+    deviceSelect.innerHTML = '<option value="">اختر الجهاز</option>';
+    liveDeviceSelect.innerHTML = '<option value="">اختر جهاز البث</option>';
+
+    ids.forEach(id => {
+        if (!deviceNames[id]) return;
+        const name = deviceNames[id];
+
+        deviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
+        liveDeviceSelect.innerHTML += `<option value="${id}">${name}</option>`;
+    });
+
+    if (!ids.length){
+        deviceSelect.innerHTML = '<option value="">لا يوجد أجهزة معرفة</option>';
+        liveDeviceSelect.innerHTML = '<option value="">لا يوجد أجهزة معرفة</option>';
+    }
+}
+
+
+/* ===================== TIMELINE FILES ===================== */
+function updateTimelineFiles(list){
+    allFilesForDate = list || [];
+    if (!timelineSlider || !timelineLabel) return;
+
+    if (!allFilesForDate.length){
+        timelineSlider.min = 0;
+        timelineSlider.max = 0;
+        timelineSlider.value = 0;
+        timelineLabel.textContent = "لا يوجد تسجيلات لهذا اليوم.";
+        return;
+    }
+
+    timelineSlider.min = 0;
+    timelineSlider.max = allFilesForDate.length - 1;
+    timelineSlider.value = 0;
+
+    const f0 = allFilesForDate[0];
+    timelineLabel.textContent = `(${f0.filename}) - (${f0.time})`;
+}
+
+
+function timelineDragging(){
+    const idx = parseInt(timelineSlider.value, 10);
+    updateTimelineLabelForIndex(idx);
+}
+
+
+function updateTimelineLabelForIndex(idx){
+    if (!allFilesForDate.length || !allFilesForDate[idx]){
+        timelineLabel.textContent = "لا يوجد تسجيل لهذا الموضع.";
+        return;
+    }
+    const f = allFilesForDate[idx];
+    timelineLabel.textContent = `(${f.filename}) - (${f.time})`;
+}
+
+
+/* ===================== TIMELINE SELECT (PLAY 5 FILES) ===================== */
+async function timelineDropped() {
+    const idx = parseInt(timelineSlider.value, 10);
+    if (!allFilesForDate.length || !allFilesForDate[idx]) return;
+
+    const selected = allFilesForDate[idx];
+
+    hourPicker.value = selected.hour;
+    renderFileListForHour();
+
+    const files = allFilesForDate.slice(idx, idx + 5).map(f => f.filename);
+    const fileListString = files.join(",");
+
+    const imei = deviceImeis[selected.deviceId];
+
+    try {
+        await fetch(`${WEBAPP_URL}?type=playback&deviceId=${selected.deviceId}&fileName=${encodeURIComponent(fileListString)}&imei=${imei}`);
+    } catch (e) {}
+
+    playWithWait(imei, "history", { files });
+}
+
+
+/* ===================== FILE LIST FOR SELECTED HOUR ===================== */
+function renderFileListForHour(){
+    const hour = hourPicker.value;
+
+    if (!allFilesForDate.length){
+        fileList.innerHTML = '<div class="info-text">لا يوجد تسجيلات لهذا اليوم.</div>';
+        return;
+    }
+
+    let subset = allFilesForDate;
+    if (hour){
+        subset = allFilesForDate.filter(v => v.hour === hour);
+    }
+
+    if (!subset.length){
+        fileList.innerHTML = '<div class="info-text">لا يوجد ملفات في هذه الساعة لهذا الجهاز.</div>';
+        return;
+    }
+
+    fileList.innerHTML = "";
+    subset.forEach(v => {
+        if (!v.filename) return;
+        fileList.innerHTML += `
+            <div class="file-item" onclick="playVideo('${v.filename}','${v.deviceId}')">
+                <div class="time-label">${v.filename}</div>
+                <b>${v.time}</b>
+            </div>
+        `;
+    });
+}
+
+
+/* ===================== LOAD FULL-DAY FILES FROM GOOGLE SHEET ===================== */
+async function loadFiles(){
+    const id   = deviceSelect.value;
+    const date = datePicker.value;
+
+    if (!id || !date){
+        fileList.innerHTML = '<div class="info-text">اختر الجهاز والتاريخ لعرض التسجيلات.</div>';
+        allFilesForDate = [];
+        updateTimelineFiles([]);
+        return;
+    }
+
+    if (lastDeviceIdForDate === id && lastDateForDate === date && allFilesForDate.length){
+        renderFileListForHour();
+        updateTimelineFiles(allFilesForDate);
+        return;
+    }
+
+    fileList.innerHTML = '<div class="info-text">جارِ تحميل قائمة التسجيلات لليوم بالكامل...</div>';
+
+    const sql = `select * where G=${id} order by A`;
+    const url = FILE_SHEET_URL + "&tq=" + encodeURIComponent(sql);
+
+    try {
+        const text = await (await fetch(url)).text();
+        const json = JSON.parse(text.substring(47).slice(0,-2));
+        const rows = json.table.rows || [];
+
+        const list = [];
+
+        rows.forEach(r => {
+            const c = r.c;
+            if (!c) return;
+
+            const raw = c[0]?.f || c[0]?.v;
+            if (!raw) return;
+
+            const parts = raw.split(" ");
+            if (parts.length < 2) return;
+
+            const mdy = parts[0];
+            const t   = parts[1];
+            const [M,D,Y]  = mdy.split("/");
+
+            const d2 = `${Y}-${M.padStart(2,"0")}-${D.padStart(2,"0")}`;
+            if (d2 !== date) return;
+
+            const hh = t.split(":")[0].padStart(2,"0");
+
+            const camVal = c[4]?.v;
+            if (cameraFilter !== "all" && String(camVal) !== String(cameraFilter)) return;
+
+            list.push({
+                time: t,
+                filename: c[2]?.v,
+                deviceId: c[6]?.v,
+                hour: hh
+            });
+        });
+
+        allFilesForDate = list;
+        lastDeviceIdForDate = id;
+        lastDateForDate = date;
+
+        if (!list.length){
+            fileList.innerHTML = '<div class="info-text">لا يوجد ملفات في هذا اليوم لهذا الجهاز.</div>';
+            updateTimelineFiles([]);
+            return;
+        }
+
+        renderFileListForHour();
+        updateTimelineFiles(list);
+
+    } catch(err){
+        console.error(err);
+        fileList.innerHTML = '<div class="info-text">حدث خطأ أثناء تحميل البيانات.</div>';
+        updateTimelineFiles([]);
+    }
+}
+
 
 </script>
 
