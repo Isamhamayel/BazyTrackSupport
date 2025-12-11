@@ -461,13 +461,10 @@ let liveReconnectAttempts = 0;
 const MAX_LIVE_RECONNECTS = 5;
 let reconnectTimeoutId = null;
 
-/* NEW: full-day files + playlist  */
-let allFilesForDate = [];          // كل ملفات اليوم المحدد (حسب الكاميرا)
+// Files for timeline
+let allFilesForDate = [];
 let lastDeviceIdForDate = null;
 let lastDateForDate = null;
-let playlist = [];                 // قائمة تشغيل من ٥ ملفات
-let currentPlaylistIndex = 0;
-
 
 /* ===================== DOM SHORTCUTS ===================== */
 const videoPlayer      = document.getElementById("videoPlayer");
@@ -497,7 +494,7 @@ const timelineSlider   = document.getElementById("timelineSlider");
 const timelineLabel    = document.getElementById("timelineLabel");
 
 
-/* ===================== HELPERS ===================== */
+/* ===================== UI HELPERS ===================== */
 function showTab(tab){
     tabHistory.classList.toggle("active", tab === "history");
     tabLive.classList.toggle("active", tab === "live");
@@ -513,11 +510,53 @@ function showTab(tab){
         modeBadge.style.color = "#166534";
     }
 }
-showTab('history');
+
+function setStatus(text){
+    statusValue.textContent = text;
+}
+
+function showLoading(flag, text){
+    loadingOverlay.style.display = flag ? "flex" : "none";
+    if (text) loadingText.textContent = text;
+    if (!flag) loadingCountdown.textContent = "";
+}
+
+function showError(msg){
+    if (!msg){
+        errorMessage.style.display = "none";
+        errorMessage.textContent = "";
+    } else {
+        errorMessage.style.display = "block";
+        errorMessage.textContent = msg;
+    }
+}
+
+/* فتح FLV خارج Traccar عند الحاجة */
+function openExternalDownload() {
+    if (!currentDownloadUrl) return;
+    const url = currentDownloadUrl;
+    const isAndroid = /Android/i.test(ua);
+    const isiOS     = /iPhone|iPad|iPod/i.test(ua);
+
+    if (isAndroid){
+        window.location.href = "googlechrome://navigate?url=" + url;
+        setTimeout(() => { window.location.href = url; }, 800);
+        return;
+    }
+    if (isiOS){
+        window.location.href = url;
+        return;
+    }
+    window.open(url, "_blank");
+}
+
+function manualPlayInIOS(){
+    if (!isIOS) return;
+    videoPlayer.play().catch(()=>{});
+}
 
 /* ===================== CLEAN VIDEO PLAYER ===================== */
 function cleanPlayer() {
-    // Clean FLV player if exists
     if (flvPlayer) {
         try {
             flvPlayer.pause();
@@ -530,13 +569,11 @@ function cleanPlayer() {
         flvPlayer = null;
     }
 
-    // Clean reconnect timer
     if (reconnectTimeoutId) {
         clearTimeout(reconnectTimeoutId);
         reconnectTimeoutId = null;
     }
 
-    // Clean HTML video state safely
     try { videoPlayer.pause(); } catch(e){}
     videoPlayer.removeAttribute("src");
     videoPlayer.srcObject = null;
@@ -545,7 +582,6 @@ function cleanPlayer() {
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
 }
-
 
 /* ===================== HLS — SAFARI / iOS ===================== */
 async function waitForHlsReady(url, timeoutMs = 20000) {
@@ -562,7 +598,6 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
     return false;
 }
 
-
 /* ===================== FLV — RETRY SYSTEM ===================== */
 async function playFLV(url, maxAttempts = 20) {
     return new Promise((resolve, reject) => {
@@ -571,7 +606,6 @@ async function playFLV(url, maxAttempts = 20) {
         async function tryPlay() {
             attempt++;
 
-            // Cleanup before starting
             cleanPlayer();
             console.log(`FLV attempt ${attempt}`);
 
@@ -596,8 +630,7 @@ async function playFLV(url, maxAttempts = 20) {
     });
 }
 
-
-/* ===================== UNIFIED PLAY FUNCTION ===================== */
+/* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
     const isHls = isIOS || isSafari;
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
@@ -605,6 +638,7 @@ async function playWithWait(imei, mode, meta = {}) {
     const url = isHls ? hlsUrl : flvUrl;
 
     lastStream = { imei, mode, isHls, meta };
+    currentDownloadUrl = flvUrl; // زر "فتح FLV في المتصفح"
 
     cleanPlayer();
     showError("");
@@ -640,7 +674,6 @@ async function playWithWait(imei, mode, meta = {}) {
         return;
     }
 
-
     /* ------- FLV MODE ------- */
     try {
         await playFLV(flvUrl, 20);
@@ -655,11 +688,7 @@ async function playWithWait(imei, mode, meta = {}) {
     }
 }
 
-
 /* ===================== AUTO-RECONNECT FOR LIVE ===================== */
-videoPlayer.addEventListener("error", tryReconnect);
-videoPlayer.addEventListener("stalled", tryReconnect);
-
 function tryReconnect() {
     if (!lastStream || lastStream.mode !== "live") return;
 
@@ -678,27 +707,59 @@ function tryReconnect() {
     }, 3000);
 }
 
-    /* ===================== STATUS + LOADING + ERROR ===================== */
-function setStatus(text){
-    statusValue.textContent = text;
-}
+videoPlayer.addEventListener("error", tryReconnect);
+videoPlayer.addEventListener("stalled", tryReconnect);
 
-function showLoading(flag, text){
-    loadingOverlay.style.display = flag ? "flex" : "none";
-    if (text) loadingText.textContent = text;
-    if (!flag) loadingCountdown.textContent = "";
-}
-
-function showError(msg){
-    if (!msg){
-        errorMessage.style.display = "none";
-        errorMessage.textContent = "";
-    } else {
-        errorMessage.style.display = "block";
-        errorMessage.textContent = msg;
+// إجبار كتم الصوت دائماً
+videoPlayer.addEventListener("volumechange", () => {
+    if (!videoPlayer.muted || videoPlayer.volume !== 0){
+        videoPlayer.muted = true;
+        videoPlayer.volume = 0;
     }
+});
+
+/* ===================== PLAYBACK CONTROLS (HISTORY & LIVE) ===================== */
+async function playVideo(filename, deviceId){
+    const imei = deviceImeis[deviceId];
+    if (!imei){
+        showError("لا يوجد IMEI معرف لهذا الجهاز في جدول Devices.");
+        return;
+    }
+
+    setStatus(`إرسال أمر تشغيل التسجيل (${filename}) إلى الجهاز...`);
+    showLoading(true, "جاري إرسال أمر بدء تشغيل التسجيل إلى الجهاز...");
+    showError("");
+
+    try {
+        await fetch(`${WEBAPP_URL}?type=playback&deviceId=${deviceId}&fileName=${encodeURIComponent(filename)}&imei=${imei}`)
+            .catch(()=>{});
+    } catch(e){}
+
+    setTimeout(() => {
+        playWithWait(imei, "history", { filename, deviceId });
+    }, 5000);
 }
 
+async function startLive(kind){
+    const deviceId = liveDeviceSelect.value;
+    if (!deviceId || !deviceImeis[deviceId]){
+        showError("اختر جهازاً مزوداً بكاميرا من تبويب البث المباشر.");
+        return;
+    }
+
+    const imei = deviceImeis[deviceId];
+    showError("");
+    setStatus(`إرسال أمر ${kind} إلى الجهاز...`);
+    showLoading(true, "جاري إرسال أمر بدء البث إلى الجهاز...");
+
+    try {
+        await fetch(`${WEBAPP_URL}?type=${kind}&deviceId=${deviceId}&imei=${imei}`)
+            .catch(()=>{});
+    } catch(e){}
+
+    // بعد إرسال الأمر نبدأ الانتظار على الستريم
+    playWithWait(imei, "live", { kind, deviceId });
+}
 
 /* ===================== CAMERA FILTER ===================== */
 function setCam(c){
@@ -712,8 +773,7 @@ function setCam(c){
     loadFiles();
 }
 
-
-/* ===================== LOAD DEVICE NAMES ===================== */
+/* ===================== LOAD DEVICE NAMES/DROPDOWN ===================== */
 async function loadDeviceNames() {
     const query = "select A,B,C";
     const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
@@ -734,14 +794,11 @@ async function loadDeviceNames() {
             deviceNames[deviceId] = name || ("جهاز " + deviceId);
             deviceImeis[deviceId] = imei;
         });
-
     } catch(err) {
         console.error("Error loading device names:", err);
     }
 }
 
-
-/* ===================== DEVICE DROPDOWNS ===================== */
 async function loadDeviceDropdown() {
     await loadDeviceNames();
 
@@ -772,8 +829,7 @@ async function loadDeviceDropdown() {
     }
 }
 
-
-/* ===================== TIMELINE FILES ===================== */
+/* ===================== TIMELINE + FILE LIST ===================== */
 function updateTimelineFiles(list){
     allFilesForDate = list || [];
     if (!timelineSlider || !timelineLabel) return;
@@ -794,12 +850,10 @@ function updateTimelineFiles(list){
     timelineLabel.textContent = `(${f0.filename}) - (${f0.time})`;
 }
 
-
 function timelineDragging(){
     const idx = parseInt(timelineSlider.value, 10);
     updateTimelineLabelForIndex(idx);
 }
-
 
 function updateTimelineLabelForIndex(idx){
     if (!allFilesForDate.length || !allFilesForDate[idx]){
@@ -810,8 +864,7 @@ function updateTimelineLabelForIndex(idx){
     timelineLabel.textContent = `(${f.filename}) - (${f.time})`;
 }
 
-
-/* ===================== TIMELINE SELECT (PLAY 5 FILES) ===================== */
+// اختيار نقطة على شريط الوقت وتشغيل ٥ تسجيلات متتالية (سيرفر يقوم بالـ playlist)
 async function timelineDropped() {
     const idx = parseInt(timelineSlider.value, 10);
     if (!allFilesForDate.length || !allFilesForDate[idx]) return;
@@ -833,8 +886,6 @@ async function timelineDropped() {
     playWithWait(imei, "history", { files });
 }
 
-
-/* ===================== FILE LIST FOR SELECTED HOUR ===================== */
 function renderFileListForHour(){
     const hour = hourPicker.value;
 
@@ -864,7 +915,6 @@ function renderFileListForHour(){
         `;
     });
 }
-
 
 /* ===================== LOAD FULL-DAY FILES FROM GOOGLE SHEET ===================== */
 async function loadFiles(){
@@ -946,8 +996,25 @@ async function loadFiles(){
     }
 }
 
+/* ===================== INIT ===================== */
+(function setDefaultDate(){
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm   = String(today.getMonth()+1).padStart(2,"0");
+    const dd   = String(today.getDate()).padStart(2,"0");
+    datePicker.value = `${yyyy}-${mm}-${dd}`;
+})();
 
+for (let h=0; h<24; h++){
+    const hh = h.toString().padStart(2,"0");
+    hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
+}
+
+showTab('history');
+loadDeviceDropdown();
+setStatus("جاهز للاستخدام. اختر جهازاً ثم تسجيل أو بث مباشر.");
 </script>
+
 
 </body>
 </html>
