@@ -535,52 +535,38 @@ function showError(msg){
     }
 }
 
-function stopPlayback() {
-    // Destroy FLV player safely
+    function stopPlayback() {
     if (flvPlayer) {
         try {
             flvPlayer.pause();
             flvPlayer.unload();
             flvPlayer.destroy();
-        } catch (e) {
-            console.warn("FLV destroy error:", e);
-        }
+        } catch(e){ console.warn(e); }
         flvPlayer = null;
     }
 
-    // Stop any reconnect loops
     if (reconnectTimeoutId) {
         clearTimeout(reconnectTimeoutId);
         reconnectTimeoutId = null;
     }
 
-    // Stop HTML video element WITHOUT clearing src
-    try {
-        videoPlayer.pause();
-    } catch (e) {}
-
-    // Reset audio (always muted)
+    try { videoPlayer.pause(); } catch(e){}
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
 
-    // DO NOT REMOVE SRC — DO NOT RESET srcObject — DO NOT CALL load()
-    // These break FLV.js reattachment in Chrome
+    // ❗ لا تلمس src أو srcObject أو load() إطلاقاً
 }
 
-function resetPlayback(){
-    try {
-        if (flvPlayer){
+
+function resetPlayback() {
+    if (flvPlayer) {
+        try {
             flvPlayer.pause();
             flvPlayer.unload();
             flvPlayer.destroy();
-        }
-    } catch(e){}
-
-    flvPlayer = null;
-
-    try {
-        videoPlayer.pause();
-    } catch(e){}
+        } catch(e){}
+        flvPlayer = null;
+    }
 }
 
 function resetLiveReconnect(){
@@ -705,52 +691,48 @@ function retryPlay(url, isFlv){
     attempt();
 }
 
-    async function forcePlayFLV(url, maxAttempts = 10) {
+   async function forcePlayFLV(url, maxAttempts = 20) {
     let attempt = 0;
 
-    return new Promise(async (resolve, reject) => {
-        async function tryPlay(){
+    return new Promise((resolve, reject) => {
+        async function tryStart() {
             attempt++;
 
-            console.log("Trying FLV attempt:", attempt);
+            console.log(`FLV attempt ${attempt}`);
 
-            // Destroy previous player
+            // Destroy old player
             if (flvPlayer) {
                 try {
                     flvPlayer.pause();
                     flvPlayer.unload();
                     flvPlayer.destroy();
                 } catch(e){}
-                flvPlayer = null;
             }
+            flvPlayer = null;
 
-            // Create new FLV player
             try {
-                flvPlayer = flvjs.createPlayer({ type: "flv", url });
+                // Create new FLV player
+                flvPlayer = flvjs.createPlayer({ type:"flv", url });
                 flvPlayer.attachMediaElement(videoPlayer);
                 flvPlayer.load();
 
                 // Try play()
                 videoPlayer.play().then(() => {
-                    console.log("FLV is now playing!");
+                    console.log("FLV running!");
                     resolve(true);
                     return;
-                }).catch(() => {
-                    // Not ready yet
-                });
-
+                }).catch(() => {});
             } catch(e){}
 
-            // Retry until max attempts reached
+            // Retry
             if (attempt < maxAttempts) {
-                setTimeout(tryPlay, 500); // retry after 0.5 sec
+                setTimeout(tryStart, 400);
             } else {
-                console.warn("FLV failed after all attempts.");
                 reject(false);
             }
         }
 
-        tryPlay();
+        tryStart();
     });
 }
 
@@ -784,20 +766,21 @@ async function playWithWait(imei, mode, meta){
         currentDownloadUrl = flvUrl; // للزر الخارجي
         retryPlay(url, false);
     } else {
-                currentDownloadUrl = flvUrl;
-            
-                // NEW: keep trying until FLV starts playing
-                forcePlayFLV(url, 10)
-                    .then(() => {
-                        console.log("FLV playback success");
-                        showLoading(false);
-                        setStatus("التسجيل يعمل الآن");
-                    })
-                    .catch(() => {
-                        showLoading(false);
-                        showError("⚠ تعذّر تشغيل التسجيل بعد عدة محاولات");
-                        setStatus("فشل التشغيل");
-                    });
+        currentDownloadUrl = flvUrl;
+        stopPlayback();
+        
+        forcePlayFLV(flvUrl, 20)
+            .then(() => {
+                showLoading(false);
+                showError("");
+                setStatus("التسجيل يعمل الآن");
+            })
+            .catch(() => {
+                showLoading(false);
+                showError("⚠ لم يبدأ التشغيل رغم المحاولات. جرّب مرة أخرى.");
+                setStatus("فشل تشغيل التسجيل");
+            });
+
 
     }
 
