@@ -1,4 +1,6 @@
-/* GENERAL PAGE LAYOUT */
+/* =========================
+   BASIC PAGE DESIGN
+========================= */
 body {
     font-family: Tahoma, Arial, sans-serif;
     background: #f3f4f6;
@@ -15,32 +17,35 @@ body {
 }
 
 .status-bar {
-    margin-top: 5px;
     background: #374151;
-    padding: 5px 10px;
+    color: #cbd5e1;
     display: inline-block;
-    border-radius: 4px;
+    padding: 5px 12px;
+    margin-top: 8px;
+    border-radius: 6px;
     font-size: 14px;
 }
 
+/* =========================
+   CONTROLS SECTION
+========================= */
 .controls {
     background: white;
     padding: 15px;
+    border-bottom: 1px solid #d1d5db;
     display: flex;
-    gap: 10px;
     flex-wrap: wrap;
-    align-items: center;
-    border-bottom: 1px solid #ccc;
+    gap: 10px;
 }
 
 .controls select,
-.controls input[type="date"] {
-    padding: 5px;
+.controls input {
+    padding: 6px;
     font-size: 14px;
 }
 
 .controls button {
-    padding: 7px 15px;
+    padding: 6px 16px;
     background: #2563eb;
     color: white;
     border: none;
@@ -49,48 +54,48 @@ body {
 }
 
 .controls button:hover {
-    background: #1d4ed8;
+    background: #1e40af;
 }
 
-/* VIDEO */
-.video-container {
-    width: 100%;
-    background: black;
+/* =========================
+   VIDEO PLAYER
+========================= */
+.video-section {
     text-align: center;
+    background: black;
+    padding: 10px;
 }
 
 #videoPlayer {
-    width: 95%;
+    width: 97%;
     max-height: 480px;
-    margin: 10px auto;
-    display: block;
     background: black;
 }
 
-/* TIMELINE WRAPPER */
-.timeline-container {
-    margin: 0 auto;
+/* =========================
+   TIMELINE SECTION
+========================= */
+.timeline-section {
     width: 95%;
-    margin-top: 10px;
+    margin: 20px auto;
     background: #ffffff;
     padding: 10px;
     border-radius: 6px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #cbd5e1;
 }
 
 /* HOURS TIMELINE (24 blocks) */
 .hour-timeline {
     display: flex;
-    height: 30px;
-    margin-bottom: 10px;
+    height: 35px;
     border-radius: 4px;
     overflow: hidden;
     background: #e5e7eb;
+    cursor: pointer;
 }
 
 .hour-block {
     flex: 1;
-    cursor: pointer;
     transition: background 0.2s;
 }
 
@@ -98,10 +103,11 @@ body {
     opacity: 0.7;
 }
 
-/* MINUTE TIMELINE */
+/* MINUTE TIMELINE (60 blocks) */
 .minute-wrapper {
     height: 40px;
     overflow: hidden;
+    margin-top: 8px;
 }
 
 .hidden {
@@ -118,19 +124,18 @@ body {
 
 .minute-block {
     flex: 1;
-    cursor: pointer;
+    transition: background 0.2s;
 }
 
 .minute-block:hover {
     opacity: 0.7;
 }
 
-/* SLIDE ANIMATION */
+/* SLIDE ANIMATION (500ms) */
 @keyframes slideDown {
     from { height: 0; opacity: 0; }
     to { height: 40px; opacity: 1; }
 }
-
 @keyframes slideUp {
     from { height: 40px; opacity: 1; }
     to { height: 0; opacity: 0; }
@@ -144,19 +149,29 @@ body {
     animation: slideUp 0.5s ease forwards;
 }
 
-/* FILE LIST */
+/* =========================
+   FILE LIST
+========================= */
 .file-section {
-    margin: 20px auto;
     width: 95%;
-    background: white;
-    padding: 10px;
+    margin: 20px auto;
+    background: #ffffff;
     border-radius: 6px;
-    border: 1px solid #ccc;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
 }
 
-#fileList {
+.file-item {
+    padding: 10px;
+    border-bottom: 1px solid #e5e7eb;
+    cursor: pointer;
+}
+
+.file-item:hover {
+    background: #f3f4f6;
+}
+
+.time-label {
     font-size: 14px;
-    line-height: 1.6;
-    max-height: 200px;
-    overflow-y: auto;
+    color: #1e40af;
 }
