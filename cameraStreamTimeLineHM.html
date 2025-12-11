@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>BazyGo Playback System</title>
+    <link rel="stylesheet" href="style.css">
+
+    <!-- FLV.js for Jimi playback -->
+    <script src="https://cdn.jsdelivr.net/npm/flv.js@1.6.2/dist/flv.min.js"></script>
+
+</head>
+<body>
+
+    <div class="header">
+        <h2>BazyGo – Smart Playback System</h2>
+        <div id="statusBar" class="status-bar">الوضع: لا شيء</div>
+    </div>
+
+    <div class="controls">
+        <label>الجهاز:</label>
+        <select id="deviceSelector"></select>
+
+        <label>التاريخ:</label>
+        <input type="date" id="datePicker">
+
+        <button id="loadBtn">تحميل تسجيلات اليوم</button>
+    </div>
+
+    <!-- VIDEO PLAYER -->
+    <div class="video-container">
+        <video id="videoPlayer" controls autoplay muted></video>
+    </div>
+
+    <!-- TIMELINE AREA -->
+    <div class="timeline-container">
+
+        <!-- 24 Hour Timeline -->
+        <div id="hourTimeline" class="hour-timeline">
+            <!-- Filled dynamically -->
+        </div>
+
+        <!-- Minute Timeline (Slide Down 500ms) -->
+        <div id="minuteTimelineWrapper" class="minute-wrapper hidden">
+            <div id="minuteTimeline" class="minute-timeline"></div>
+        </div>
+
+    </div>
+
+    <!-- FILE LIST (Left side – optional for reference) -->
+    <div class="file-section">
+        <h4>ملفات الساعة المختارة</h4>
+        <div id="fileList"></div>
+    </div>
+
+    <script src="script.js" defer></script>
+</body>
+</html>
