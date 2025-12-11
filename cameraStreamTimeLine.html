@@ -670,10 +670,6 @@ function retryPlay(url, isFlv){
                 flvPlayer.on(flvjs.Events.STATISTICS_INFO, onSuccess);
                 flvPlayer.on(flvjs.Events.LOADING_COMPLETE, onSuccess);
                 flvPlayer.load();
-                detectFreezeAndRetry(flvPlayer, imei, () => {
-                    retries++;
-                    retryPlay(url, true); 
-                });
                 v.play().then(onSuccess).catch(()=>{});
             } else {
                 onFailFinal();
@@ -695,20 +691,6 @@ function retryPlay(url, isFlv){
 
     attempt();
 }
-function detectFreezeAndRetry(flvPlayer, imei, attemptCallback) {
-    let lastDecoded = flvPlayer.statisticsInfo ? flvPlayer.statisticsInfo.decodedFrames : 0;
-
-    setTimeout(() => {
-        let nowDecoded = flvPlayer.statisticsInfo ? flvPlayer.statisticsInfo.decodedFrames : 0;
-
-        // إذا لم يزد عدد الفريمات → الجهاز أرسل فقط أول Frame ثم توقف
-        if (nowDecoded <= lastDecoded) {
-            console.warn("FREEZE DETECTED → RETRYING...");
-            attemptCallback(); // إعادة محاولة التشغيل
-        }
-    }, 900); // الوقت الأمثل 900ms
-}
-
 
 /* ===================== PLAY WITH WAIT (IOS = HLS LL-HLS, OTHERS = FLV) ===================== */
 async function playWithWait(imei, mode, meta){
