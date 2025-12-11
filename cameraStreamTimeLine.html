@@ -419,10 +419,6 @@ header .sub {
                 اسحب لاختيار وقت التسجيل في هذا اليوم
             </div>
 
-            <!-- THUMBNAIL STRIP -->
-            <div id="thumbnailStrip"
-                 style="margin-top:6px; display:flex; gap:4px; overflow-x:auto; padding:4px; background:#f9fafb; border-radius:6px;">
-            </div>
         </div>
 
         <div class="info-text">
@@ -464,13 +460,13 @@ let liveReconnectAttempts = 0;
 const MAX_LIVE_RECONNECTS = 5;
 let reconnectTimeoutId = null;
 
-/* NEW: full-day files + playlist + thumbnails */
+/* NEW: full-day files + playlist */
 let allFilesForDate = [];          // كل ملفات اليوم المحدد (حسب الكاميرا)
 let lastDeviceIdForDate = null;
 let lastDateForDate = null;
 let playlist = [];                 // قائمة تشغيل من ٥ ملفات
 let currentPlaylistIndex = 0;
-let thumbnailCache = {};           // filename → dataURL
+
 
 /* ===================== DOM SHORTCUTS ===================== */
 const videoPlayer      = document.getElementById("videoPlayer");
@@ -498,7 +494,7 @@ const btnCAll          = document.getElementById("btnCAll");
 
 const timelineSlider   = document.getElementById("timelineSlider");
 const timelineLabel    = document.getElementById("timelineLabel");
-const thumbnailStrip   = document.getElementById("thumbnailStrip");
+
 
 /* ===================== HELPERS ===================== */
 function showTab(tab){
@@ -756,8 +752,6 @@ async function playVideo(filename, deviceId){
 
     playWithWait(imei, 'history', { filename, deviceId });
 
-    // بعد بدء التشغيل بقليل، التقط لقطة مصغرة
-    setTimeout(() => addThumbnailToStrip(filename, deviceId), 2000);
 }
 
 /* ===================== LIVE STREAM ===================== */
@@ -831,7 +825,7 @@ function updateTimelineFiles(list){
         timelineSlider.max = 0;
         timelineSlider.value = 0;
         timelineLabel.textContent = "لا يوجد تسجيلات لهذا اليوم.";
-        thumbnailStrip.innerHTML = "";
+       
         return;
     }
 
@@ -901,55 +895,7 @@ videoPlayer.addEventListener("ended", () => {
     }
 });
 
-/* ===================== THUMBNAILS FROM VIDEO ===================== */
 
-function generateThumbnail(filename){
-    return new Promise(resolve => {
-        if (thumbnailCache[filename]){
-            resolve(thumbnailCache[filename]);
-            return;
-        }
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = 160;
-        canvas.height = 90;
-
-        try {
-            ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
-            const dataURL = canvas.toDataURL("image/jpeg");
-            thumbnailCache[filename] = dataURL;
-            resolve(dataURL);
-        } catch(err){
-            console.warn("Could not capture thumbnail:", err);
-            resolve(null);
-        }
-    });
-}
-
-function addThumbnailToStrip(filename, deviceId){
-    generateThumbnail(filename).then(url => {
-        if (!url) return;
-        if (!thumbnailStrip) return;
-
-        if (document.getElementById("thumb_" + filename)) return;
-
-        const img = document.createElement("img");
-        img.id = "thumb_" + filename;
-        img.src = url;
-        img.style.width = "120px";
-        img.style.height = "70px";
-        img.style.objectFit = "cover";
-        img.style.borderRadius = "4px";
-        img.style.cursor = "pointer";
-        img.title = filename;
-
-        img.onclick = () => playVideo(filename, deviceId);
-
-        thumbnailStrip.appendChild(img);
-    });
-}
 
 /* ===================== CAMERA FILTER (HISTORY) ===================== */
 function setCam(c){
