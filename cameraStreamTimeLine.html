@@ -415,7 +415,7 @@ header .sub {
                    oninput="timelineDragging()"
                    onchange="timelineDropped()">
             <div id="timelineLabel"
-                 style="font-size:10px; color:#555; text-align:center; margin-top:3px;">
+                 style="font-size:12px; color:#555; text-align:center; margin-top:3px;">
                 اسحب لاختيار وقت التسجيل في هذا اليوم
             </div>
 
@@ -554,6 +554,24 @@ function stopPlayback(){
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
 }
+function resetPlayback(){
+    try {
+        if (flvPlayer){
+            flvPlayer.pause();
+            flvPlayer.unload();
+            flvPlayer.destroy();
+        }
+    } catch(e){}
+
+    flvPlayer = null;
+
+    try {
+        videoPlayer.pause();
+        videoPlayer.removeAttribute("src");
+        videoPlayer.src = "";
+        videoPlayer.load();
+    } catch(e){}
+}
 
 function resetLiveReconnect(){
     liveReconnectAttempts = 0;
@@ -679,66 +697,37 @@ function retryPlay(url, isFlv){
 
 /* ===================== PLAY WITH WAIT (IOS = HLS LL-HLS, OTHERS = FLV) ===================== */
 async function playWithWait(imei, mode, meta){
+    const useHls = isIOS || isSafari;
+    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
 
-    let retries = 0;
-    const maxRetries = 2;
+    const url = useHls ? hlsUrl : flvUrl;
+    resetPlayback();
+    lastStream = { imei, isHls: useHls, mode, meta: meta || {} };
+    if (mode !== 'live') resetLiveReconnect();
+    
+    stopPlayback();
+    showError("");
+    showLoading(true, mode === 'live'
+        ? "جاري تحضير البث المباشر..."
+        : "جاري تحضير ملف التسجيل...");
+    setStatus("انتظار جاهزية البث من الخادم...");
 
-    async function attempt(){
-        setStatus(`جاري التشغيل... (محاولة ${retries+1})`);
-        showLoading(true, "جاري بدء تشغيل الفيديو...");
-
-        // RESET قبل التشغيل
-        await resetPlayback();
-        await new Promise(r => setTimeout(r, 800)); // مهم جداً
-
-        const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv?_=${Date.now()}`;
-        const isHls = isIOS || isSafari;
-        const hlsUrl = flvUrl.replace(".flv",".m3u8");
-
-        if (isHls){
-            videoPlayer.src = hlsUrl;
-            videoPlayer.play().catch(()=>{});
+    if (useHls){
+        const ready = await waitForStream(url, 20000);
+        if (!ready){
             showLoading(false);
+            showError("البث غير جاهز بعد. حاول مرة أخرى بعد قليل.");
+            setStatus("البث غير جاهز من الخادم.");
             return;
         }
-
-        if (flvjs.isSupported()){
-            flvPlayer = flvjs.createPlayer({
-                type: "flv",
-                url: flvUrl,
-                isLive: false,
-                enableStashBuffer: false
-            });
-
-            flvPlayer.attachMediaElement(videoPlayer);
-            flvPlayer.load();
-
-            // إذا لم تصل metadata → إعادة محاولة
-            let timeout = setTimeout(async ()=>{
-                if (retries < maxRetries){
-                    retries++;
-                    await attempt();
-                } else {
-                    showLoading(false);
-                    showError("تعذّر بدء التشغيل بعد عدة محاولات.");
-                }
-            }, 900);
-
-            flvPlayer.on(flvjs.Events.METADATA_ARRIVED, ()=>{
-                clearTimeout(timeout);
-                showLoading(false);
-                videoPlayer.play().catch(()=>{});
-            });
-
-            flvPlayer.on(flvjs.Events.ERROR, (t,d)=>{
-                console.warn("FLV ERROR:", t, d);
-            });
-        }
+        currentDownloadUrl = flvUrl; // للزر الخارجي
+        retryPlay(url, false);
+    } else {
+        currentDownloadUrl = flvUrl;
+        retryPlay(url, true);
     }
-
-    attempt(); // تشغيل أول محاولة
 }
-
 
 /* ===================== HISTORY PLAYBACK ===================== */
 async function playVideo(filename, deviceId){
@@ -842,7 +831,7 @@ function updateTimelineFiles(list){
     timelineSlider.value = 0;
 
     const f0 = allFilesForDate[0];
-    timelineLabel.textContent = `الملف: ${f0.filename} - ${f0.time}`;
+    timelineLabel.textContent = `(${f0.filename}) - (${f0.time})`;
 }
 
 function timelineDragging(){
@@ -856,7 +845,7 @@ function updateTimelineLabelForIndex(idx){
         return;
     }
     const f = allFilesForDate[idx];
-    timelineLabel.textContent = `الملف: ${f.filename} - ${f.time}`;
+    timelineLabel.textContent = `(${f.filename}) - (${f.time})`;
 }
 
 // عند إفلات المؤشر: اختر الملف وبناء قائمة تشغيل من ٥ ملفات
