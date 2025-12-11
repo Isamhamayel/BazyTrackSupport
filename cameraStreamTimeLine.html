@@ -692,6 +692,56 @@ function retryPlay(url, isFlv){
     attempt();
 }
 
+    async function forcePlayFLV(url, maxAttempts = 10) {
+    let attempt = 0;
+
+    return new Promise(async (resolve, reject) => {
+        async function tryPlay(){
+            attempt++;
+
+            console.log("Trying FLV attempt:", attempt);
+
+            // Destroy previous player
+            if (flvPlayer) {
+                try {
+                    flvPlayer.pause();
+                    flvPlayer.unload();
+                    flvPlayer.destroy();
+                } catch(e){}
+                flvPlayer = null;
+            }
+
+            // Create new FLV player
+            try {
+                flvPlayer = flvjs.createPlayer({ type: "flv", url });
+                flvPlayer.attachMediaElement(videoPlayer);
+                flvPlayer.load();
+
+                // Try play()
+                videoPlayer.play().then(() => {
+                    console.log("FLV is now playing!");
+                    resolve(true);
+                    return;
+                }).catch(() => {
+                    // Not ready yet
+                });
+
+            } catch(e){}
+
+            // Retry until max attempts reached
+            if (attempt < maxAttempts) {
+                setTimeout(tryPlay, 500); // retry after 0.5 sec
+            } else {
+                console.warn("FLV failed after all attempts.");
+                reject(false);
+            }
+        }
+
+        tryPlay();
+    });
+}
+
+    
 /* ===================== PLAY WITH WAIT (IOS = HLS LL-HLS, OTHERS = FLV) ===================== */
 async function playWithWait(imei, mode, meta){
     const useHls = isIOS || isSafari;
@@ -723,14 +773,19 @@ async function playWithWait(imei, mode, meta){
     } else {
                 currentDownloadUrl = flvUrl;
             
-                // NEW: Ensure M3U8 is ready before starting FLV
-                const hlsProbe = await waitForStream(`https://${STREAM_HOST}/live/0/${imei}.m3u8`, 15000);
-            
-                if (!hlsProbe) {
-                    console.warn("M3U8 not ready yet, starting FLV anyway...");
-                }
-            
-                retryPlay(url, true);
+                // NEW: keep trying until FLV starts playing
+                forcePlayFLV(url, 10)
+                    .then(() => {
+                        console.log("FLV playback success");
+                        showLoading(false);
+                        setStatus("التسجيل يعمل الآن");
+                    })
+                    .catch(() => {
+                        showLoading(false);
+                        showError("⚠ تعذّر تشغيل التسجيل بعد عدة محاولات");
+                        setStatus("فشل التشغيل");
+                    });
+
     }
 
 
