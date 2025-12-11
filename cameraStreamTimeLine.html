@@ -725,7 +725,10 @@ async function playWithWait(imei, mode, meta){
         retryPlay(url, false);
     } else {
         currentDownloadUrl = flvUrl;
+        // ⭐ تأخير بسيط قبل بدء تشغيل FLV للتأكد من جاهزية جيمي
+        await new Promise(res => setTimeout(res, 800));
         retryPlay(url, true);
+
     }
 }
 
