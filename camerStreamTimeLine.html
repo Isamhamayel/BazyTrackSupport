@@ -554,6 +554,24 @@ function stopPlayback(){
     videoPlayer.muted = true;
     videoPlayer.volume = 0;
 }
+function resetPlayback(){
+    try {
+        if (flvPlayer){
+            flvPlayer.pause();
+            flvPlayer.unload();
+            flvPlayer.destroy();
+        }
+    } catch(e){}
+
+    flvPlayer = null;
+
+    try {
+        videoPlayer.pause();
+        videoPlayer.removeAttribute("src");
+        videoPlayer.src = "";
+        videoPlayer.load();
+    } catch(e){}
+}
 
 function resetLiveReconnect(){
     liveReconnectAttempts = 0;
@@ -684,10 +702,10 @@ async function playWithWait(imei, mode, meta){
     const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
 
     const url = useHls ? hlsUrl : flvUrl;
-
+    resetPlayback();
     lastStream = { imei, isHls: useHls, mode, meta: meta || {} };
     if (mode !== 'live') resetLiveReconnect();
-
+    
     stopPlayback();
     showError("");
     showLoading(true, mode === 'live'
@@ -813,7 +831,7 @@ function updateTimelineFiles(list){
     timelineSlider.value = 0;
 
     const f0 = allFilesForDate[0];
-    timelineLabel.textContent = `الملف: ${f0.filename} - ${f0.time}`;
+    timelineLabel.textContent = `(${f0.filename}) - (${f0.time})`;
 }
 
 function timelineDragging(){
@@ -827,7 +845,7 @@ function updateTimelineLabelForIndex(idx){
         return;
     }
     const f = allFilesForDate[idx];
-    timelineLabel.textContent = `الملف: ${f.filename} - ${f.time}`;
+    timelineLabel.textContent = `(${f.filename}) - (${f.time})`;
 }
 
 // عند إفلات المؤشر: اختر الملف وبناء قائمة تشغيل من ٥ ملفات
