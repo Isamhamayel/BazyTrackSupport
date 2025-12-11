@@ -669,7 +669,15 @@ async function playWithWait(imei, mode, meta){
         retryPlay(url, false);
     } else {
         currentDownloadUrl = flvUrl;
-        retryPlay(url, true);
+       if (mode === "history") {
+                // تأخير بسيط قبل تشغيل FLV حتى لا يتجمد Chrome
+                setTimeout(() => {
+                    retryPlay(url, true);
+                }, 1200); // 1.2 ثانية كافية لمنع freeze
+        } else {
+            retryPlay(url, true);
+        }
+
     }
 }
 
