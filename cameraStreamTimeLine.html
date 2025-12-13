@@ -167,13 +167,14 @@ header .sub {
 }
 
 /* RIGHT PANEL */
-.right {
+right {
     width:70%;
     padding:8px;
     background:#f3f4f6;
     display:flex;
     flex-direction:column;
     gap:6px;
+    height:100%;          /* 🟢 مهم */
 }
 
 #statusBar {
@@ -241,7 +242,8 @@ header .sub {
 /* VIDEO WRAPPER */
 #videoWrapper {
     position:relative;
-    flex:1;
+    flex:1 1 auto;        /* 🟢 مهم */
+    min-height:0;         /* 🟢 مهم */
     display:flex;
     align-items:center;
     justify-content:center;
@@ -249,7 +251,6 @@ header .sub {
     border-radius:10px;
     overflow:hidden;
 }
-
 #videoPlayer {
     width:100%;
     height:100%;
