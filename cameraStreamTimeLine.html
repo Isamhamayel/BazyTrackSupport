@@ -656,7 +656,7 @@ async function playWithWait(imei, mode, meta = {}) {
 
     lastStream = { imei, mode, isHls, meta };
     currentDownloadUrl = flvUrl; // زر "فتح FLV في المتصفح"
-
+    downloadBtn.style.display = "inline-flex";
     cleanPlayer();
     showError("");
     showLoading(true, mode === "live" ? "جاري تهيئة البث..." : "جاري تهيئة التسجيل...");
@@ -664,7 +664,7 @@ async function playWithWait(imei, mode, meta = {}) {
 
     /* ------- HLS MODE ------- */
     if (isHls) {
-        const ready = await waitForHlsReady(url, 20000);
+        const ready = await waitForHlsReady(url, 25000);
 
         if (!ready) {
             showLoading(false);
