@@ -601,41 +601,62 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
 /* ===================== FLV — RETRY SYSTEM ===================== */
 async function playFLV(url, maxAttempts = 20) {
     return new Promise((resolve, reject) => {
+
         let attempt = 0;
-        let stopped = false;   // 🟢 flag to stop retries
+        let stopped = false;
 
         async function tryPlay() {
-            if (stopped) return;  // 🛑 do NOT retry after success
+            if (stopped) return;
 
             attempt++;
-            console.log("FLV attempt:", attempt);
 
-            // Cleanup previous player
             if (flvPlayer) {
                 try {
                     flvPlayer.pause();
                     flvPlayer.unload();
                     flvPlayer.detachMediaElement();
                     flvPlayer.destroy();
-                } catch(e){}
+                } catch (e) {}
+                flvPlayer = null;
             }
 
+            videoPlayer.pause();
+            videoPlayer.removeAttribute("src");
+            videoPlayer.load();
+
             try {
-                flvPlayer = flvjs.createPlayer({ type: "flv", url });
+                flvPlayer = flvjs.createPlayer({
+                    type: "flv",
+                    url: url,
+                    isLive: true,
+                    enableStashBuffer: false,
+                    stashInitialSize: 128,
+                    lazyLoad: false,
+                    autoCleanupSourceBuffer: true,
+                    autoCleanupMaxBackwardDuration: 30,
+                    autoCleanupMinBackwardDuration: 10
+                });
+
                 flvPlayer.attachMediaElement(videoPlayer);
                 flvPlayer.load();
 
                 videoPlayer.play().then(() => {
-                    console.log("FLV PLAY SUCCESS 🎉");
-                    stopped = true;     // 🛑 stop retrying
+                    stopped = true;
                     resolve(true);
                 }).catch(() => {});
-            } catch(e){}
 
-            // Retry ONLY if not stopped
-            if (!stopped) {
+                flvPlayer.on(flvjs.Events.ERROR, () => {
+                    if (stopped) return;
+                    if (attempt < maxAttempts) {
+                        setTimeout(tryPlay, 1200);
+                    } else {
+                        reject(false);
+                    }
+                });
+
+            } catch (e) {
                 if (attempt < maxAttempts) {
-                    setTimeout(tryPlay, 1250);
+                    setTimeout(tryPlay, 1200);
                 } else {
                     reject(false);
                 }
@@ -652,19 +673,21 @@ async function playWithWait(imei, mode, meta = {}) {
     const isHls = isIOS || isSafari;
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
     const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-    const url = isHls ? hlsUrl : flvUrl;
 
     lastStream = { imei, mode, isHls, meta };
-    currentDownloadUrl = flvUrl; // زر "فتح FLV في المتصفح"
-    downloadBtn.style.display = "inline-flex";
+
+    // ❌ لا تجهز رابط تحميل أثناء التشغيل
+    currentDownloadUrl = null;
+    downloadBtn.style.display = "none";
+
     cleanPlayer();
     showError("");
     showLoading(true, mode === "live" ? "جاري تهيئة البث..." : "جاري تهيئة التسجيل...");
     setStatus("انتظار جاهزية البث...");
 
-    /* ------- HLS MODE ------- */
+    /* ===== HLS (iOS / Safari) ===== */
     if (isHls) {
-        const ready = await waitForHlsReady(url, 25000);
+        const ready = await waitForHlsReady(hlsUrl, 25000);
 
         if (!ready) {
             showLoading(false);
@@ -674,7 +697,7 @@ async function playWithWait(imei, mode, meta = {}) {
         }
 
         cleanPlayer();
-        videoPlayer.src = url;
+        videoPlayer.src = hlsUrl;
         videoPlayer.load();
 
         videoPlayer.play()
@@ -684,14 +707,14 @@ async function playWithWait(imei, mode, meta = {}) {
             })
             .catch(() => {
                 showLoading(false);
-                showError("لم يبدأ التشغيل. اضغط على الفيديو يدوياً (iOS).");
-                setStatus("زر التشغيل مطلوب");
+                showError("اضغط على الفيديو لبدء التشغيل (iOS).");
+                setStatus("بانتظار تشغيل يدوي");
             });
 
         return;
     }
 
-    /* ------- FLV MODE ------- */
+    /* ===== FLV (Desktop Browsers) ===== */
     try {
         await playFLV(flvUrl, 25);
 
@@ -700,10 +723,11 @@ async function playWithWait(imei, mode, meta = {}) {
         setStatus(mode === "live" ? "البث يعمل الآن" : "التسجيل يعمل الآن");
     } catch (e) {
         showLoading(false);
-        showError("⚠ فشل تشغيل الفيديو بعد عدة محاولات.");
+        showError("⚠ فشل تشغيل الفيديو.");
         setStatus("فشل FLV");
     }
 }
+
 
 /* ===================== AUTO-RECONNECT FOR LIVE ===================== */
 function tryReconnect() {
