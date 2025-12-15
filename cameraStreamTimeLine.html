@@ -467,7 +467,7 @@ let lastDeviceIdForDate = null;
 let lastDateForDate = null;
 
 /* ===================== DOM SHORTCUTS ===================== */
-const videoPlayer      = document.getElementById("videoPlayer");
+let videoPlayer      = document.getElementById("videoPlayer");
 const loadingOverlay   = document.getElementById("loadingOverlay");
 const loadingText      = document.getElementById("loadingText");
 const loadingCountdown = document.getElementById("loadingCountdown");
@@ -583,6 +583,8 @@ function cleanPlayer() {
 
     // 3) Update reference
     videoPlayer = newVideo;
+    attachVideoListeners();
+
 }
 
 /* ===================== HLS — SAFARI / iOS ===================== */
@@ -603,8 +605,6 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
 /* ===================== FLV — RETRY SYSTEM ===================== */
 async function playFLV(url) {
     return new Promise((resolve, reject) => {
-
-        cleanPlayer();
 
         flvPlayer = flvjs.createPlayer({
             type: "flv",
@@ -655,6 +655,16 @@ async function playFLV(url) {
     });
 }
 
+function attachVideoListeners() {
+    videoPlayer.addEventListener("error", tryReconnect);
+    videoPlayer.addEventListener("stalled", tryReconnect);
+    videoPlayer.addEventListener("volumechange", () => {
+        if (!videoPlayer.muted || videoPlayer.volume !== 0){
+            videoPlayer.muted = true;
+            videoPlayer.volume = 0;
+        }
+    });
+}
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
