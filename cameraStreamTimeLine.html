@@ -602,7 +602,7 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
 async function playFLV(url) {
     return new Promise((resolve, reject) => {
 
-        cleanPlayer(); // تنظيف مرة واحدة فقط
+        cleanPlayer();
 
         flvPlayer = flvjs.createPlayer({
             type: "flv",
@@ -616,39 +616,43 @@ async function playFLV(url) {
         let started = false;
         let timeoutId;
 
-        function onFirstFrame() {
+        function onStart() {
             if (started) return;
             started = true;
             clearTimeout(timeoutId);
-            cleanupListeners();
+            cleanup();
             resolve(true);
         }
 
         function onError(e) {
-            cleanupListeners();
+            cleanup();
             reject(e);
         }
 
-        function cleanupListeners() {
-            videoPlayer.removeEventListener("playing", onFirstFrame);
+        function cleanup() {
+            videoPlayer.removeEventListener("playing", onStart);
+            videoPlayer.removeEventListener("canplay", onStart);
             flvPlayer.off(flvjs.Events.ERROR, onError);
         }
 
-        videoPlayer.addEventListener("playing", onFirstFrame);
+        // 🔑 listen to BOTH
+        videoPlayer.addEventListener("playing", onStart);
+        videoPlayer.addEventListener("canplay", onStart);
+
         flvPlayer.on(flvjs.Events.ERROR, onError);
 
         flvPlayer.load();
         videoPlayer.play().catch(()=>{});
 
-        // ⏱️ Timeout حقيقي (ليس retries)
         timeoutId = setTimeout(() => {
             if (!started) {
-                cleanupListeners();
+                cleanup();
                 reject(new Error("FLV start timeout"));
             }
-        }, 40000); // مناسب لـ GOP طويل
+        }, 40000);
     });
 }
+
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
