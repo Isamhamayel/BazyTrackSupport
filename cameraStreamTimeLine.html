@@ -467,7 +467,7 @@ let lastDeviceIdForDate = null;
 let lastDateForDate = null;
 
 /* ===================== DOM SHORTCUTS ===================== */
-let videoPlayer      = document.getElementById("videoPlayer");
+const videoPlayer      = document.getElementById("videoPlayer");
 const loadingOverlay   = document.getElementById("loadingOverlay");
 const loadingText      = document.getElementById("loadingText");
 const loadingCountdown = document.getElementById("loadingCountdown");
@@ -557,34 +557,30 @@ function manualPlayInIOS(){
 
 /* ===================== CLEAN VIDEO PLAYER ===================== */
 function cleanPlayer() {
-
-    // 1) Destroy flv.js instance
     if (flvPlayer) {
         try {
             flvPlayer.pause();
             flvPlayer.unload();
             flvPlayer.detachMediaElement();
             flvPlayer.destroy();
-        } catch (e) {}
+        } catch (e) {
+            console.warn("FLV cleanup error:", e);
+        }
         flvPlayer = null;
     }
 
-    // 2) 🔥 Recreate video element (VERY IMPORTANT)
-    const oldVideo = videoPlayer;
-    const newVideo = oldVideo.cloneNode(true);
+    if (reconnectTimeoutId) {
+        clearTimeout(reconnectTimeoutId);
+        reconnectTimeoutId = null;
+    }
 
-    newVideo.muted = true;
-    newVideo.volume = 0;
-    newVideo.playsInline = true;
-    newVideo.setAttribute("playsinline", "");
-    newVideo.setAttribute("webkit-playsinline", "");
+    try { videoPlayer.pause(); } catch(e){}
+    videoPlayer.removeAttribute("src");
+    videoPlayer.srcObject = null;
+    videoPlayer.load();
 
-    oldVideo.parentNode.replaceChild(newVideo, oldVideo);
-
-    // 3) Update reference
-    videoPlayer = newVideo;
-    attachVideoListeners();
-
+    videoPlayer.muted = true;
+    videoPlayer.volume = 0;
 }
 
 /* ===================== HLS — SAFARI / iOS ===================== */
@@ -603,68 +599,53 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
 }
 
 /* ===================== FLV — RETRY SYSTEM ===================== */
-async function playFLV(url) {
+async function playFLV(url, maxAttempts = 20) {
     return new Promise((resolve, reject) => {
+        let attempt = 0;
+        let stopped = false;   // 🟢 flag to stop retries
 
-        flvPlayer = flvjs.createPlayer({
-            type: "flv",
-            url,
-            isLive: true,
-            enableStashBuffer: false
-        });
+        async function tryPlay() {
+            if (stopped) return;  // 🛑 do NOT retry after success
 
-        flvPlayer.attachMediaElement(videoPlayer);
+            attempt++;
+            console.log("FLV attempt:", attempt);
 
-        let started = false;
-        let timeoutId;
-
-        function onStart() {
-            if (started) return;
-            started = true;
-            clearTimeout(timeoutId);
-            cleanup();
-            resolve(true);
-        }
-
-        function onError(e) {
-            cleanup();
-            reject(e);
-        }
-
-        function cleanup() {
-            videoPlayer.removeEventListener("playing", onStart);
-            videoPlayer.removeEventListener("canplay", onStart);
-            flvPlayer.off(flvjs.Events.ERROR, onError);
-        }
-
-        // 🔑 listen to BOTH
-        videoPlayer.addEventListener("playing", onStart);
-        videoPlayer.addEventListener("canplay", onStart);
-
-        flvPlayer.on(flvjs.Events.ERROR, onError);
-
-        flvPlayer.load();
-        videoPlayer.play().catch(()=>{});
-
-        timeoutId = setTimeout(() => {
-            if (!started) {
-                cleanup();
-                reject(new Error("FLV start timeout"));
+            // Cleanup previous player
+            if (flvPlayer) {
+                try {
+                    flvPlayer.pause();
+                    flvPlayer.unload();
+                    flvPlayer.detachMediaElement();
+                    flvPlayer.destroy();
+                } catch(e){}
             }
-        }, 40000);
+
+            try {
+                flvPlayer = flvjs.createPlayer({ type: "flv", url });
+                flvPlayer.attachMediaElement(videoPlayer);
+                flvPlayer.load();
+
+                videoPlayer.play().then(() => {
+                    console.log("FLV PLAY SUCCESS 🎉");
+                    stopped = true;     // 🛑 stop retrying
+                    resolve(true);
+                }).catch(() => {});
+            } catch(e){}
+
+            // Retry ONLY if not stopped
+            if (!stopped) {
+                if (attempt < maxAttempts) {
+                    setTimeout(tryPlay, 1250);
+                } else {
+                    reject(false);
+                }
+            }
+        }
+
+        tryPlay();
     });
 }
 
-function attachVideoListeners() {
-    videoPlayer.addEventListener("error", tryReconnect);
-    videoPlayer.addEventListener("stalled", tryReconnect);
-    videoPlayer.addEventListener("volumechange", () => {
-        if (!videoPlayer.muted || videoPlayer.volume !== 0){
-            videoPlayer.muted = true;
-            videoPlayer.volume = 0;
-        }
-    });
-}
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
