@@ -626,24 +626,28 @@ async function playFLV(url, maxAttempts = 20) {
 
             try {
                 flvPlayer = flvjs.createPlayer({
-                    type: "flv",
-                    url: url,
-                    isLive: true,
-                    enableStashBuffer: false,
-                    stashInitialSize: 128,
-                    lazyLoad: false,
-                    autoCleanupSourceBuffer: true,
-                    autoCleanupMaxBackwardDuration: 30,
-                    autoCleanupMinBackwardDuration: 10
+                      type: "flv",
+                      url: url,
+                      isLive: false,
+                      hasAudio: false,
+                      hasVideo: true,
+                      enableStashBuffer: false,
+                      stashInitialSize: 128,
+                      lazyLoad: false,
+                      autoCleanupSourceBuffer: true,
+                      autoCleanupMaxBackwardDuration: 30,
+                      autoCleanupMinBackwardDuration: 10
                 });
 
                 flvPlayer.attachMediaElement(videoPlayer);
                 flvPlayer.load();
+                flvPlayer.play();
 
-                videoPlayer.play().then(() => {
-                    stopped = true;
-                    resolve(true);
-                }).catch(() => {});
+
+                setTimeout(() => {
+                  stopped = true;
+                  resolve(true);
+                }, 300);
 
                 flvPlayer.on(flvjs.Events.ERROR, () => {
                     if (stopped) return;
