@@ -599,53 +599,56 @@ async function waitForHlsReady(url, timeoutMs = 20000) {
 }
 
 /* ===================== FLV — RETRY SYSTEM ===================== */
-async function playFLV(url, maxAttempts = 20) {
+async function playFLV(url) {
     return new Promise((resolve, reject) => {
-        let attempt = 0;
-        let stopped = false;   // 🟢 flag to stop retries
 
-        async function tryPlay() {
-            if (stopped) return;  // 🛑 do NOT retry after success
+        cleanPlayer(); // تنظيف مرة واحدة فقط
 
-            attempt++;
-            console.log("FLV attempt:", attempt);
+        flvPlayer = flvjs.createPlayer({
+            type: "flv",
+            url,
+            isLive: true,
+            enableStashBuffer: false
+        });
 
-            // Cleanup previous player
-            if (flvPlayer) {
-                try {
-                    flvPlayer.pause();
-                    flvPlayer.unload();
-                    flvPlayer.detachMediaElement();
-                    flvPlayer.destroy();
-                } catch(e){}
-            }
+        flvPlayer.attachMediaElement(videoPlayer);
 
-            try {
-                flvPlayer = flvjs.createPlayer({ type: "flv", url });
-                flvPlayer.attachMediaElement(videoPlayer);
-                flvPlayer.load();
+        let started = false;
+        let timeoutId;
 
-                videoPlayer.play().then(() => {
-                    console.log("FLV PLAY SUCCESS 🎉");
-                    stopped = true;     // 🛑 stop retrying
-                    resolve(true);
-                }).catch(() => {});
-            } catch(e){}
-
-            // Retry ONLY if not stopped
-            if (!stopped) {
-                if (attempt < maxAttempts) {
-                    setTimeout(tryPlay, 1250);
-                } else {
-                    reject(false);
-                }
-            }
+        function onFirstFrame() {
+            if (started) return;
+            started = true;
+            clearTimeout(timeoutId);
+            cleanupListeners();
+            resolve(true);
         }
 
-        tryPlay();
+        function onError(e) {
+            cleanupListeners();
+            reject(e);
+        }
+
+        function cleanupListeners() {
+            videoPlayer.removeEventListener("playing", onFirstFrame);
+            flvPlayer.off(flvjs.Events.ERROR, onError);
+        }
+
+        videoPlayer.addEventListener("playing", onFirstFrame);
+        flvPlayer.on(flvjs.Events.ERROR, onError);
+
+        flvPlayer.load();
+        videoPlayer.play().catch(()=>{});
+
+        // ⏱️ Timeout حقيقي (ليس retries)
+        timeoutId = setTimeout(() => {
+            if (!started) {
+                cleanupListeners();
+                reject(new Error("FLV start timeout"));
+            }
+        }, 40000); // مناسب لـ GOP طويل
     });
 }
-
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
