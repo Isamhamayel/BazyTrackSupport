@@ -451,6 +451,8 @@ const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
 
 let cameraFilter = 1;
 let flvPlayer = null;
+let retryTimer = null;
+
 
 let deviceNames = {};
 let deviceImeis = {};
@@ -605,72 +607,65 @@ async function playFLV(url, maxAttempts = 20) {
         let attempt = 0;
         let stopped = false;
 
-        async function tryPlay() {
-            if (stopped) return;
-
-            attempt++;
-
-            if (flvPlayer) {
-                try {
+        function clean() {
+            try {
+                if (flvPlayer) {
                     flvPlayer.pause();
                     flvPlayer.unload();
                     flvPlayer.detachMediaElement();
                     flvPlayer.destroy();
-                } catch (e) {}
-                flvPlayer = null;
-            }
-
-            videoPlayer.pause();
-            videoPlayer.removeAttribute("src");
-            videoPlayer.load();
+                    flvPlayer = null;
+                }
+            } catch (e) {}
 
             try {
-                flvPlayer = flvjs.createPlayer({
-                      type: "flv",
-                      url: url,
-                      isLive: false,
-                      hasAudio: false,
-                      hasVideo: true,
-                      enableStashBuffer: false,
-                      stashInitialSize: 128,
-                      lazyLoad: false,
-                      autoCleanupSourceBuffer: true,
-                      autoCleanupMaxBackwardDuration: 30,
-                      autoCleanupMinBackwardDuration: 10
-                });
+                videoPlayer.pause();
+                videoPlayer.removeAttribute("src");
+                videoPlayer.load();
+            } catch (e) {}
+        }
 
-                flvPlayer.attachMediaElement(videoPlayer);
-                flvPlayer.load();
-                flvPlayer.play();
+        function tryPlay() {
+            if (stopped) return;
 
+            attempt++;
+            clean();
 
-                setTimeout(() => {
-                  stopped = true;
-                  resolve(true);
-                }, 300);
+            flvPlayer = flvjs.createPlayer({
+                type: "flv",
+                url: url,
+                isLive: false,
+                hasAudio: false,
+                hasVideo: true,
+                enableStashBuffer: false
+            });
 
-                flvPlayer.on(flvjs.Events.ERROR, () => {
-                    if (stopped) return;
-                    if (attempt < maxAttempts) {
-                        setTimeout(tryPlay, 1200);
-                    } else {
-                        reject(false);
-                    }
-                });
+            flvPlayer.attachMediaElement(videoPlayer);
+            flvPlayer.load();
 
-            } catch (e) {
+            flvPlayer.play().then(() => {
+                stopped = true;
+                resolve(true);
+            }).catch(() => {});
+
+            flvPlayer.on(flvjs.Events.ERROR, (type, detail) => {
+                if (stopped) return;
+
+                clean();
+
                 if (attempt < maxAttempts) {
-                    setTimeout(tryPlay, 1200);
+                    retryTimer = setTimeout(() => {
+                        tryPlay();
+                    }, 1200);
                 } else {
                     reject(false);
                 }
-            }
+            });
         }
 
         tryPlay();
     });
 }
-
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
 async function playWithWait(imei, mode, meta = {}) {
