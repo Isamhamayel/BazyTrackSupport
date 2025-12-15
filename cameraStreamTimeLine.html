@@ -467,6 +467,8 @@ let reconnectTimeoutId = null;
 let allFilesForDate = [];
 let lastDeviceIdForDate = null;
 let lastDateForDate = null;
+let selectedFile = null;
+
 
 /* ===================== DOM SHORTCUTS ===================== */
 const videoPlayer      = document.getElementById("videoPlayer");
@@ -645,6 +647,15 @@ async function playFLV(url, maxAttempts = 20) {
             flvPlayer.load();
 
             flvPlayer.play().then(() => {
+                if (selectedFile) {
+                        const deviceName = deviceNames[selectedFile.deviceId] || "device";
+                        const safeDevice = deviceName.replace(/[^a-zA-Z0-9_-]/g, "_");
+                        const safeFile   = selectedFile.filename.replace(/[^a-zA-Z0-9_-]/g, "_");
+                        const safeTime   = selectedFile.fullDateTime.replace(/[: ]/g, "_");
+                    
+                        downloadBtn.download = `${safeDevice}_${safeFile}_${safeTime}.flv`;
+                }
+
                 downloadBtn.style.display = "inline-block";
                 stopped = true;
                 resolve(true);
@@ -914,7 +925,7 @@ async function timelineDropped() {
     if (!allFilesForDate.length || !allFilesForDate[idx]) return;
 
     const selected = allFilesForDate[idx];
-
+    selectedFile = selected;   // 🔴 هنا
     hourPicker.value = selected.hour;
     renderFileListForHour();
 
@@ -1016,8 +1027,11 @@ async function loadFiles(){
                 time: t,
                 filename: c[2]?.v,
                 deviceId: c[6]?.v,
-                hour: hh
+                hour: hh,
+                fullDateTime: `${d2} ${t}`   // 🔴 أضف هذا
             });
+
+            
         });
 
         allFilesForDate = list;
