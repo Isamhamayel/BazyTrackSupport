@@ -557,30 +557,32 @@ function manualPlayInIOS(){
 
 /* ===================== CLEAN VIDEO PLAYER ===================== */
 function cleanPlayer() {
+
+    // 1) Destroy flv.js instance
     if (flvPlayer) {
         try {
             flvPlayer.pause();
             flvPlayer.unload();
             flvPlayer.detachMediaElement();
             flvPlayer.destroy();
-        } catch (e) {
-            console.warn("FLV cleanup error:", e);
-        }
+        } catch (e) {}
         flvPlayer = null;
     }
 
-    if (reconnectTimeoutId) {
-        clearTimeout(reconnectTimeoutId);
-        reconnectTimeoutId = null;
-    }
+    // 2) 🔥 Recreate video element (VERY IMPORTANT)
+    const oldVideo = videoPlayer;
+    const newVideo = oldVideo.cloneNode(true);
 
-    try { videoPlayer.pause(); } catch(e){}
-    videoPlayer.removeAttribute("src");
-    videoPlayer.srcObject = null;
-    videoPlayer.load();
+    newVideo.muted = true;
+    newVideo.volume = 0;
+    newVideo.playsInline = true;
+    newVideo.setAttribute("playsinline", "");
+    newVideo.setAttribute("webkit-playsinline", "");
 
-    videoPlayer.muted = true;
-    videoPlayer.volume = 0;
+    oldVideo.parentNode.replaceChild(newVideo, oldVideo);
+
+    // 3) Update reference
+    videoPlayer = newVideo;
 }
 
 /* ===================== HLS — SAFARI / iOS ===================== */
