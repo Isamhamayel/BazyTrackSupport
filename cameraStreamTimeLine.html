@@ -680,7 +680,7 @@ async function playWithWait(imei, mode, meta = {}) {
     lastStream = { imei, mode, isHls, meta };
 
     // ❌ لا تجهز رابط تحميل أثناء التشغيل
-    currentDownloadUrl = null;
+    currentDownloadUrl = flvUrl;
     downloadBtn.style.display = "none";
 
     cleanPlayer();
