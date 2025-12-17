@@ -692,24 +692,7 @@ async function playWithWait(imei, mode, channel = 0, meta = {}) {
     lastStream = { imei, mode, channel, isHls, meta };
     currentDownloadUrl = flvUrl;
     downloadBtn.style.display = "none";
-
-    const wrapper = document.getElementById("videoWrapper");
-    if (!wrapper.querySelector("#videoPlayer")) {
-        wrapper.innerHTML = `
-            <video id="videoPlayer"
-                   controls
-                   playsinline
-                   webkit-playsinline
-                   muted
-                   onclick="manualPlayInIOS()"></video>
-            <div id="loadingOverlay">
-                <div class="spinner"></div>
-                <div id="loadingText">جارِ تفعيل الفيديو...</div>
-                <div id="loadingCountdown"></div>
-            </div>
-        `;
-    }
- 
+     
     cleanPlayer();
     showError("");
     showLoading(true, mode === "live" ? "جاري تهيئة البث..." : "جاري تهيئة التسجيل...");
@@ -875,6 +858,7 @@ function playBothCameras(imei, deviceId) {
 
     setStatus("تشغيل الكاميرتين (داخلية + خارجية)");
     showLoading(false);
+    lastStream = null; // عطّل reconnect الخاص بمشغل واحد
 }
 
 
