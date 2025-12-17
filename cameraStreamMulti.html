@@ -350,10 +350,10 @@ header .sub {
                     <option value="">اختر جهاز البث</option>
                 </select>
             </div>
-
             <div class="cam-buttons">
-                <button class="cam-btn" onclick="startLive('livein')">📡 كاميرا داخلية (livein)</button>
-                <button class="cam-btn" onclick="startLive('liveout')">📡 كاميرا خارجية (liveout)</button>
+                <button class="cam-btn" onclick="startLive('internal')">📡 كاميرا داخلية</button>
+                <button class="cam-btn" onclick="startLive('external')">📡 كاميرا خارجية</button>
+                <button class="cam-btn" onclick="startLive('both')">📡 كلا الكاميرتين</button>
             </div>
 
             <div class="info-text">
@@ -683,14 +683,13 @@ async function playFLV(url, maxAttempts = 20) {
 }
 
 /* ===================== UNIFIED PLAY FUNCTION (HISTORY + LIVE) ===================== */
-async function playWithWait(imei, mode, meta = {}) {
+async function playWithWait(imei, mode, channel = 0, meta = {}) {
     const isHls = isIOS || isSafari;
-    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
 
-    lastStream = { imei, mode, isHls, meta };
+    const flvUrl = `https://${STREAM_HOST}/live/${imei}/${channel}.flv`;
+    const hlsUrl = `https://${STREAM_HOST}/live/${imei}/${channel}.m3u8`;
 
-    // ❌ لا تجهز رابط تحميل أثناء التشغيل
+    lastStream = { imei, mode, channel, isHls, meta };
     currentDownloadUrl = flvUrl;
     downloadBtn.style.display = "none";
 
@@ -812,9 +811,53 @@ async function startLive(kind){
             .catch(()=>{});
     } catch(e){}
 
-    // بعد إرسال الأمر نبدأ الانتظار على الستريم
-    playWithWait(imei, "live", { kind, deviceId });
+    // تحديد القناة
+    if (kind === "internal") {
+        playWithWait(imei, "live", 1, { deviceId });
+    }
+    else if (kind === "external") {
+        playWithWait(imei, "live", 0, { deviceId });
+    }
+    else if (kind === "both") {
+        playBothCameras(imei, deviceId);
+    }
 }
+
+function playBothCameras(imei, deviceId) {
+    cleanPlayer();
+
+    const wrapper = document.getElementById("videoWrapper");
+    wrapper.innerHTML = "";
+
+    ["0", "1"].forEach(channel => {
+        const video = document.createElement("video");
+        video.controls = true;
+        video.muted = true;
+        video.playsInline = true;
+        video.style.width = "50%";
+        video.style.height = "100%";
+        video.style.background = "#000";
+
+        wrapper.appendChild(video);
+
+        const url = `https://${STREAM_HOST}/live/${imei}/${channel}.flv`;
+
+        const p = flvjs.createPlayer({
+            type: "flv",
+            url,
+            isLive: true,
+            hasAudio: false
+        });
+
+        p.attachMediaElement(video);
+        p.load();
+        p.play().catch(()=>{});
+    });
+
+    setStatus("تشغيل الكاميرتين (داخلية + خارجية)");
+    showLoading(false);
+}
+
 
 /* ===================== CAMERA FILTER ===================== */
 function setCam(c){
