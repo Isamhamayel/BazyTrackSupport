@@ -686,8 +686,17 @@ async function playFLV(url, maxAttempts = 20) {
 async function playWithWait(imei, mode, channel = 0, meta = {}) {
     const isHls = isIOS || isSafari;
 
-    const flvUrl = `https://${STREAM_HOST}/${imei}/${channel}.flv`;
-    const hlsUrl = `https://${STREAM_HOST}/${imei}/${channel}.m3u8`;
+    let flvUrl, hlsUrl;
+    
+    if (mode === "history") {
+        // التسجيلات دائمًا IMEI/IMEI
+        flvUrl = `https://${STREAM_HOST}/${imei}/${imei}.flv`;
+        hlsUrl = `https://${STREAM_HOST}/${imei}/${imei}.m3u8`;
+    } else {
+        // البث المباشر يعتمد على القناة
+        flvUrl = `https://${STREAM_HOST}/${imei}/${channel}.flv`;
+        hlsUrl = `https://${STREAM_HOST}/${imei}/${channel}.m3u8`;
+    }
 
     lastStream = { imei, mode, channel, isHls, meta };
     currentDownloadUrl = flvUrl;
