@@ -693,10 +693,29 @@ async function playWithWait(imei, mode, channel = 0, meta = {}) {
     currentDownloadUrl = flvUrl;
     downloadBtn.style.display = "none";
 
+    const wrapper = document.getElementById("videoWrapper");
+    if (!wrapper.querySelector("#videoPlayer")) {
+        wrapper.innerHTML = `
+            <video id="videoPlayer"
+                   controls
+                   playsinline
+                   webkit-playsinline
+                   muted
+                   onclick="manualPlayInIOS()"></video>
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+                <div id="loadingText">جارِ تفعيل الفيديو...</div>
+                <div id="loadingCountdown"></div>
+            </div>
+        `;
+    }
+ 
     cleanPlayer();
     showError("");
     showLoading(true, mode === "live" ? "جاري تهيئة البث..." : "جاري تهيئة التسجيل...");
     setStatus("انتظار جاهزية البث...");
+
+    
 
     /* ===== HLS (iOS / Safari) ===== */
     if (isHls) {
@@ -756,9 +775,9 @@ function tryReconnect() {
     setStatus(`إعادة محاولة الاتصال... (${liveReconnectAttempts}/${MAX_LIVE_RECONNECTS})`);
     showLoading(true, "محاولة إعادة اتصال...");
 
-    reconnectTimeoutId = setTimeout(() => {
-        playWithWait(lastStream.imei, "live", lastStream.meta);
-    }, 3000);
+   reconnectTimeoutId = setTimeout(() => {
+        playWithWait(lastStream.imei, "live", lastStream.channel, lastStream.meta);
+   }, 3000);
 }
 
 videoPlayer.addEventListener("error", tryReconnect);
@@ -812,13 +831,13 @@ async function startLive(kind){
     } catch(e){}
 
     // تحديد القناة
-    if (kind === "internal") {
+    if (kind === "livein") {
         playWithWait(imei, "live", 1, { deviceId });
     }
-    else if (kind === "external") {
+    else if (kind === "liveout") {
         playWithWait(imei, "live", 0, { deviceId });
     }
-    else if (kind === "both") {
+    else if (kind === "liveboth") {
         playBothCameras(imei, deviceId);
     }
 }
