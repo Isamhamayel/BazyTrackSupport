@@ -792,7 +792,7 @@ async function playVideo(filename, deviceId){
     } catch(e){}
 
     setTimeout(() => {
-        playWithWait(imei, "history", { filename, deviceId });
+        playWithWait(imei, "history",0, { filename, deviceId });
     }, 10000);
 }
 
@@ -984,7 +984,7 @@ async function timelineDropped() {
         await fetch(`${WEBAPP_URL}?type=playback&deviceId=${selected.deviceId}&fileName=${encodeURIComponent(fileListString)}&imei=${imei}`);
     } catch (e) {}
 
-    playWithWait(imei, "history", { files });
+    playWithWait(imei, "history", 0,{ files });
 }
 
 function renderFileListForHour(){
