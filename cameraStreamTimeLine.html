@@ -701,19 +701,23 @@ async function playWithWait(imei, mode, meta = {}) {
 
     /* ===== HLS (iOS / Safari) ===== */
     if (isHls) {
-        const ready = await waitForHlsReady(hlsUrl, 25000);
 
+        const ready = await waitForHlsReady(
+            hlsUrl,
+            mode === "history" ? 40000 : 25000
+        );
+    
         if (!ready) {
             showLoading(false);
-            showError("البث غير جاهز حالياً. حاول لاحقاً.");
-            setStatus("تعذر تشغيل HLS");
+            showError("التسجيل غير جاهز بعد، حاول بعد ثواني.");
+            setStatus("التسجيل غير جاهز");
             return;
         }
-
+    
         cleanPlayer();
         videoPlayer.src = hlsUrl;
         videoPlayer.load();
-
+    
         videoPlayer.play()
             .then(() => {
                 showLoading(false);
@@ -721,10 +725,10 @@ async function playWithWait(imei, mode, meta = {}) {
             })
             .catch(() => {
                 showLoading(false);
-                showError("اضغط على الفيديو لبدء التشغيل (iOS).");
+                showError("اضغط على الفيديو لبدء التشغيل.");
                 setStatus("بانتظار تشغيل يدوي");
             });
-
+    
         return;
     }
 
