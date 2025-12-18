@@ -686,7 +686,8 @@ async function playFLV(url, maxAttempts = 20) {
 async function playWithWait(imei, mode, meta = {}) {
     const isHls = isIOS || isSafari;
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+    const ts = Date.now();
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8?mode=${mode}&t=${ts}`;
 
     lastStream = { imei, mode, isHls, meta };
 
@@ -715,6 +716,9 @@ async function playWithWait(imei, mode, meta = {}) {
         }
     
         cleanPlayer();
+        videoPlayer.pause();
+        videoPlayer.removeAttribute("src");
+        videoPlayer.load();
         videoPlayer.src = hlsUrl;
         videoPlayer.load();
     
