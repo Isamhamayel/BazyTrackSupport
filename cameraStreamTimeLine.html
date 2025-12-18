@@ -472,6 +472,9 @@ let selectedFile = null;
 
 /* ===================== DOM SHORTCUTS ===================== */
 const videoPlayer      = document.getElementById("videoPlayer");
+videoPlayer.muted = true;
+videoPlayer.volume = 0;
+
 const loadingOverlay   = document.getElementById("loadingOverlay");
 const loadingText      = document.getElementById("loadingText");
 const loadingCountdown = document.getElementById("loadingCountdown");
@@ -705,36 +708,43 @@ async function playWithWait(imei, mode, meta = {}) {
 
         const ready = await waitForHlsReady(
             hlsUrl,
-            mode === "history" ? 40000 : 25000
+            mode === "history" ? 60000 : 20000
         );
     
         if (!ready) {
             showLoading(false);
-            showError("التسجيل غير جاهز بعد، حاول بعد ثواني.");
-            setStatus("التسجيل غير جاهز");
+            showError("التسجيل غير جاهز بعد");
+            setStatus("HLS غير جاهز");
             return;
         }
     
         cleanPlayer();
-        videoPlayer.pause();
-        videoPlayer.removeAttribute("src");
-        videoPlayer.load();
-        videoPlayer.src = hlsUrl;
-        videoPlayer.load();
     
-        videoPlayer.play()
-            .then(() => {
-                showLoading(false);
-                setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
-            })
-            .catch(() => {
-                showLoading(false);
-                showError("اضغط على الفيديو لبدء التشغيل.");
-                setStatus("بانتظار تشغيل يدوي");
-            });
+        videoPlayer.src = hlsUrl;
+        videoPlayer.muted = true;
+        videoPlayer.volume = 0;
+        videoPlayer.playsInline = true;
+        videoPlayer.setAttribute("playsinline", "");
+        videoPlayer.setAttribute("webkit-playsinline", "");
+    
+        const playPromise = videoPlayer.play();
+    
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    showLoading(false);
+                    setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
+                })
+                .catch(() => {
+                    showLoading(false);
+                    showError("اضغط على الفيديو لبدء التشغيل");
+                    setStatus("بانتظار تشغيل يدوي");
+                });
+        }
     
         return;
     }
+
 
     /* ===== FLV (Desktop Browsers) ===== */
     try {
