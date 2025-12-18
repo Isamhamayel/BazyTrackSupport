@@ -472,9 +472,6 @@ let selectedFile = null;
 
 /* ===================== DOM SHORTCUTS ===================== */
 const videoPlayer      = document.getElementById("videoPlayer");
-videoPlayer.muted = true;
-videoPlayer.volume = 0;
-
 const loadingOverlay   = document.getElementById("loadingOverlay");
 const loadingText      = document.getElementById("loadingText");
 const loadingCountdown = document.getElementById("loadingCountdown");
@@ -689,8 +686,7 @@ async function playFLV(url, maxAttempts = 20) {
 async function playWithWait(imei, mode, meta = {}) {
     const isHls = isIOS || isSafari;
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-    const ts = Date.now();
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8?mode=${mode}&t=${ts}`;
+    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
 
     lastStream = { imei, mode, isHls, meta };
 
@@ -705,46 +701,32 @@ async function playWithWait(imei, mode, meta = {}) {
 
     /* ===== HLS (iOS / Safari) ===== */
     if (isHls) {
+        const ready = await waitForHlsReady(hlsUrl, 25000);
 
-        const ready = await waitForHlsReady(
-            hlsUrl,
-            mode === "history" ? 60000 : 20000
-        );
-    
         if (!ready) {
             showLoading(false);
-            showError("التسجيل غير جاهز بعد");
-            setStatus("HLS غير جاهز");
+            showError("البث غير جاهز حالياً. حاول لاحقاً.");
+            setStatus("تعذر تشغيل HLS");
             return;
         }
-    
+
         cleanPlayer();
-    
         videoPlayer.src = hlsUrl;
-        videoPlayer.muted = true;
-        videoPlayer.volume = 0;
-        videoPlayer.playsInline = true;
-        videoPlayer.setAttribute("playsinline", "");
-        videoPlayer.setAttribute("webkit-playsinline", "");
-    
-        const playPromise = videoPlayer.play();
-    
-        if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    showLoading(false);
-                    setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
-                })
-                .catch(() => {
-                    showLoading(false);
-                    showError("اضغط على الفيديو لبدء التشغيل");
-                    setStatus("بانتظار تشغيل يدوي");
-                });
-        }
-    
+        videoPlayer.load();
+
+        videoPlayer.play()
+            .then(() => {
+                showLoading(false);
+                setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
+            })
+            .catch(() => {
+                showLoading(false);
+                showError("اضغط على الفيديو لبدء التشغيل (iOS).");
+                setStatus("بانتظار تشغيل يدوي");
+            });
+
         return;
     }
-
 
     /* ===== FLV (Desktop Browsers) ===== */
     try {
