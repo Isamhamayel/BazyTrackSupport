@@ -20,6 +20,37 @@
 <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
 
 <style>
+  .tabs {
+  display: flex;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 8px;
+}
+
+.tab {
+  padding: 6px 12px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  border-bottom: none;
+  background: #f5f5f5;
+  margin-right: 4px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  font-size: 14px;
+}
+
+.tab.active {
+  background: white;
+  font-weight: bold;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
 html, body {
   margin: 0;
   height: 100%;
@@ -58,17 +89,35 @@ button {
 
 <div id="container">
   <div id="sidebar">
-    <canvas id="statusChart" height="110" style="max-width:260px;margin:auto;"></canvas>
-    <div id="statusFilter"></div>
-    <button id="resetBtn">Reset Filters</button>
-    <hr>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="chartTab">الحالات</div>
+    <div class="tab" data-tab="listTab">نقاط التفتيش</div>
+  </div>
+
+  <!-- Tab: Pie Chart -->
+  <div id="chartTab" class="tab-content active">
+    <canvas id="statusChart"
+            height="110"
+            style="max-width:260px;margin:10px auto;"></canvas>
+
+    <div id="statusFilter" style="margin-top:6px;"></div>
+    <button id="resetBtn">إعادة تعيين</button>
+  </div>
+
+  <!-- Tab: List -->
+  <div id="listTab" class="tab-content">
     <table id="poiTable" class="display">
       <thead>
-        <tr><th>POI</th></tr>
+        <tr><th>نقطة التفتيش</th></tr>
       </thead>
       <tbody></tbody>
     </table>
   </div>
+
+</div>
+
   <div id="map"></div>
 </div>
 
@@ -134,6 +183,25 @@ fetch(kmlUrl)
     buildTable(geo.features);
     updateAll();
   });
+
+  // ---------------- TABS ----------------
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    // deactivate all
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    // activate selected
+    tab.classList.add('active');
+    document.getElementById(tab.dataset.tab).classList.add('active');
+
+    // fix DataTable width when shown
+    if (tab.dataset.tab === 'listTab' && table) {
+      setTimeout(() => table.columns.adjust(), 50);
+    }
+  });
+});
+
 
 /* ---------------- MAP ---------------- */
 function buildMap(features) {
