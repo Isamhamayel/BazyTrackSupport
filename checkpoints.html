@@ -108,11 +108,27 @@ fetch(kmlUrl)
     const dom = new DOMParser().parseFromString(text, 'text/xml');
     const geo = toGeoJSON.kml(dom);
 
-    geo.features.forEach(f => {
-      const s = (f.properties.status || 'open').toLowerCase();
-      f.properties.status = STATUS_CONFIG[s] ? s : 'open';
-      f.properties.color = STATUS_CONFIG[f.properties.status].color;
-    });
+   geo.features.forEach(f => {
+        const styleUrl = (f.properties.styleUrl || '').toLowerCase();
+      
+        let status = 'open'; // default
+      
+        if (styleUrl.includes('traffic')) {
+          status = 'traffic';
+        } else if (styleUrl.includes('closed') || styleUrl.includes('default')) {
+          status = 'closed';
+        } else if (styleUrl.includes('open')) {
+          status = 'open';
+        }
+      
+        f.properties.status = status;
+        f.properties.color = STATUS_CONFIG[status].color;
+      
+        if (!f.properties.name) {
+          f.properties.name = 'POI';
+        }
+      });
+
 
     buildMap(geo.features);
     buildTable(geo.features);
