@@ -58,7 +58,7 @@ button {
 
 <div id="container">
   <div id="sidebar">
-    <canvas id="statusChart" height="160"></canvas>
+    <canvas id="statusChart" height="110" style="max-width:260px;margin:auto;"></canvas>
     <div id="statusFilter"></div>
     <button id="resetBtn">Reset Filters</button>
     <hr>
@@ -194,26 +194,46 @@ function getVisibleStats() {
 
 /* ---------------- PIE CHART ---------------- */
 function buildChart(stats) {
-  const labels = Object.keys(stats).map(s => STATUS_CONFIG[s].label);
-  const data = Object.values(stats);
-  const colors = Object.keys(stats).map(s => STATUS_CONFIG[s].color);
+  const statuses = Object.keys(STATUS_CONFIG);
+  const labels = statuses.map(s => STATUS_CONFIG[s].label);
+  const data = statuses.map(s => stats[s] || 0);
+  const colors = statuses.map(s => STATUS_CONFIG[s].color);
 
   if (!chart) {
     chart = new Chart(document.getElementById('statusChart'), {
       type: 'pie',
       data: {
         labels,
-        datasets: [{ data, backgroundColor: colors }]
+        datasets: [{
+          data,
+          backgroundColor: colors,
+        }]
       },
       options: {
-        plugins: { legend: { position: 'bottom' } },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom' }
+        },
         onClick: (evt, elements) => {
-          if (elements.length) {
-            const idx = elements[0].index;
-            const status = Object.keys(stats)[idx];
-            activeStatuses = [status]; // KEEP PIE SLICE
-            applyFilters();
+          if (!elements.length) return;
+
+          const idx = elements[0].index;
+          const clickedStatus = statuses[idx];
+
+          // 🔁 TOGGLE LOGIC
+          if (
+            activeStatuses.length === 1 &&
+            activeStatuses[0] === clickedStatus
+          ) {
+            // second click → show all
+            activeStatuses = Object.keys(STATUS_CONFIG);
+          } else {
+            // first click → filter
+            activeStatuses = [clickedStatus];
           }
+
+          applyFilters();
         }
       }
     });
@@ -222,6 +242,7 @@ function buildChart(stats) {
     chart.update();
   }
 }
+
 
 /* ---------------- STATUS FILTER UI ---------------- */
 function buildStatusFilter(stats) {
