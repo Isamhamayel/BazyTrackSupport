@@ -4,14 +4,17 @@
 <meta charset="utf-8">
 <title>POI Viewer</title>
 
-<!-- Leaflet (OpenStreetMap) -->
+<!-- Leaflet (OSM) -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<!-- DataTables -->
+<!-- jQuery + DataTables -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <!-- toGeoJSON -->
 <script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
@@ -22,40 +25,31 @@ html, body {
   height: 100%;
   font-family: Arial;
 }
-
 #container {
   display: flex;
   height: 100%;
 }
-
 #sidebar {
   width: 35%;
   padding: 10px;
   overflow: auto;
 }
-
 #map {
   flex: 1;
 }
-
 .color-box {
   width: 12px;
   height: 12px;
   display: inline-block;
   margin-right: 6px;
 }
-
+button {
+  margin-top: 6px;
+}
 @media (max-width: 768px) {
-  #container {
-    flex-direction: column;
-  }
-  #sidebar {
-    width: 100%;
-    height: 45%;
-  }
-  #map {
-    height: 55%;
-  }
+  #container { flex-direction: column; }
+  #sidebar { width: 100%; height: 50%; }
+  #map { height: 50%; }
 }
 </style>
 </head>
@@ -64,11 +58,13 @@ html, body {
 
 <div id="container">
   <div id="sidebar">
+    <canvas id="statusChart" height="160"></canvas>
+    <div id="statusFilter"></div>
+    <button id="resetBtn">Reset Filters</button>
+    <hr>
     <table id="poiTable" class="display">
       <thead>
-        <tr>
-          <th>POI</th>
-        </tr>
+        <tr><th>POI</th></tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -77,65 +73,56 @@ html, body {
 </div>
 
 <script>
-/* ------------------ MAP ------------------ */
-const map = L.map('map').setView([31.95, 35.93], 7);
+/* ---------------- CONFIG ---------------- */
+const STATUS_CONFIG = {
+  open:    { label: 'Open',    color: '#2ecc71' },
+  traffic: { label: 'Traffic', color: '#f1c40f' },
+  closed:  { label: 'Closed',  color: '#e74c3c' },
+};
 
+/* ---------------- MAP ---------------- */
+const map = L.map('map').setView([31.95, 35.93], 7);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '© OpenStreetMap'
 }).addTo(map);
 
-let poiLayer;
 let markers = [];
+let table;
+let chart;
+let activeStatuses = Object.keys(STATUS_CONFIG);
 
-/* ------------------ HELPERS ------------------ */
-const kmlColorToHex = (c) => {
-  if (!c || c.length !== 8) return '#ff0000';
-  return '#' + c.substring(6,8) + c.substring(4,6) + c.substring(2,4);
-};
+/* ---------------- HELPERS ---------------- */
+const getKmlUrl = () => new URLSearchParams(location.search).get('kml');
 
-const getKmlUrl = () => {
-  const p = new URLSearchParams(window.location.search);
-  return p.get('kml');
-};
-
-/* ------------------ LOAD KML ------------------ */
 const kmlUrl = getKmlUrl();
 if (!kmlUrl) {
   alert('Missing ?kml= parameter');
-  throw new Error('No KML provided');
+  throw new Error('No KML URL');
 }
 
+/* ---------------- LOAD KML ---------------- */
 fetch(kmlUrl)
   .then(r => r.text())
   .then(text => {
     const dom = new DOMParser().parseFromString(text, 'text/xml');
-
-    // Extract styles
-    const styles = {};
-    dom.querySelectorAll('Style').forEach(s => {
-      const id = s.getAttribute('id');
-      const color = s.querySelector('IconStyle > color');
-      styles['#'+id] = {
-        color: color ? kmlColorToHex(color.textContent) : '#ff0000'
-      };
-    });
-
     const geo = toGeoJSON.kml(dom);
 
     geo.features.forEach(f => {
-      f.properties.color = styles[f.properties.styleUrl]?.color || '#ff0000';
+      const s = (f.properties.status || 'open').toLowerCase();
+      f.properties.status = STATUS_CONFIG[s] ? s : 'open';
+      f.properties.color = STATUS_CONFIG[f.properties.status].color;
     });
 
     buildMap(geo.features);
     buildTable(geo.features);
+    updateAll();
   });
 
-/* ------------------ MAP BUILD ------------------ */
+/* ---------------- MAP ---------------- */
 function buildMap(features) {
   markers = [];
-
-  poiLayer = L.geoJSON(features, {
+  const layer = L.geoJSON(features, {
     pointToLayer: (f, latlng) => {
       const m = L.circleMarker(latlng, {
         radius: 7,
@@ -144,29 +131,24 @@ function buildMap(features) {
         fillOpacity: 1
       });
       m.feature = f;
+      m.bindPopup(`<b>${f.properties.name}</b><br>Status: ${STATUS_CONFIG[f.properties.status].label}`);
       markers.push(m);
       return m;
-    },
-    onEachFeature: (f, l) => {
-      l.bindPopup(`<b>${f.properties.name}</b>`);
     }
   }).addTo(map);
 
-  map.fitBounds(poiLayer.getBounds());
+  map.fitBounds(layer.getBounds());
 }
 
-/* ------------------ TABLE ------------------ */
-let table;
-
+/* ---------------- TABLE ---------------- */
 function buildTable(features) {
   const tbody = $('#poiTable tbody');
-
   features.forEach((f, i) => {
     tbody.append(`
       <tr data-index="${i}">
         <td>
           <span class="color-box" style="background:${f.properties.color}"></span>
-          ${f.properties.name || 'POI'}
+          ${f.properties.name}
         </td>
       </tr>
     `);
@@ -174,33 +156,113 @@ function buildTable(features) {
 
   table = $('#poiTable').DataTable();
 
-  // Click row → highlight POI
   $('#poiTable tbody').on('click', 'tr', function () {
-    const idx = $(this).data('index');
-    highlightPOI(markers[idx]);
+    const m = markers[$(this).data('index')];
+    map.setView(m.getLatLng(), 16);
+    m.openPopup();
   });
 
-  // Fit map to filtered table
-  table.on('draw', () => {
-    const visible = [];
-    table.rows({ filter: 'applied' }).every(function () {
-      visible.push(markers[this.index()]);
+  table.on('draw', updateAll);
+}
+
+/* ---------------- STATS ---------------- */
+function getVisibleStats() {
+  const stats = { open: 0, traffic: 0, closed: 0 };
+
+  table.rows({ filter: 'applied' }).every(function () {
+    const s = markers[this.index()].feature.properties.status;
+    if (activeStatuses.includes(s)) stats[s]++;
+  });
+  return stats;
+}
+
+/* ---------------- PIE CHART ---------------- */
+function buildChart(stats) {
+  const labels = Object.keys(stats).map(s => STATUS_CONFIG[s].label);
+  const data = Object.values(stats);
+  const colors = Object.keys(stats).map(s => STATUS_CONFIG[s].color);
+
+  if (!chart) {
+    chart = new Chart(document.getElementById('statusChart'), {
+      type: 'pie',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: colors }]
+      },
+      options: {
+        plugins: { legend: { position: 'bottom' } },
+        onClick: (evt, elements) => {
+          if (elements.length) {
+            const idx = elements[0].index;
+            const status = Object.keys(stats)[idx];
+            activeStatuses = [status]; // KEEP PIE SLICE
+            applyFilters();
+          }
+        }
+      }
     });
-    if (visible.length) {
-      const group = L.featureGroup(visible);
-      map.fitBounds(group.getBounds());
+  } else {
+    chart.data.datasets[0].data = data;
+    chart.update();
+  }
+}
+
+/* ---------------- STATUS FILTER UI ---------------- */
+function buildStatusFilter(stats) {
+  const c = document.getElementById('statusFilter');
+  c.innerHTML = '';
+  Object.keys(STATUS_CONFIG).forEach(s => {
+    c.innerHTML += `
+      <label style="margin-right:10px">
+        <input type="checkbox" ${activeStatuses.includes(s) ? 'checked' : ''} value="${s}">
+        <span style="color:${STATUS_CONFIG[s].color}">
+          ${STATUS_CONFIG[s].label} (${stats[s] || 0})
+        </span>
+      </label>
+    `;
+  });
+
+  c.querySelectorAll('input').forEach(cb => {
+    cb.onchange = () => {
+      activeStatuses = [...c.querySelectorAll('input:checked')].map(i => i.value);
+      applyFilters();
+    };
+  });
+}
+
+/* ---------------- APPLY FILTERS ---------------- */
+function applyFilters() {
+  markers.forEach((m, i) => {
+    const visible = activeStatuses.includes(m.feature.properties.status);
+    if (visible) {
+      m.addTo(map);
+      $(table.row(i).node()).show();
+    } else {
+      map.removeLayer(m);
+      $(table.row(i).node()).hide();
     }
   });
+  updateAll(false);
 }
 
-/* ------------------ INTERACTION ------------------ */
-function highlightPOI(marker) {
-  map.setView(marker.getLatLng(), 16);
-  marker.openPopup();
+/* ---------------- UPDATE ALL ---------------- */
+function updateAll(rebuild = true) {
+  const stats = getVisibleStats();
+  buildChart(stats);
+  buildStatusFilter(stats);
 
-  marker.setStyle({ radius: 12 });
-  setTimeout(() => marker.setStyle({ radius: 7 }), 800);
+  const visible = markers.filter(m => activeStatuses.includes(m.feature.properties.status));
+  if (visible.length) {
+    map.fitBounds(L.featureGroup(visible).getBounds());
+  }
 }
+
+/* ---------------- RESET ---------------- */
+document.getElementById('resetBtn').onclick = () => {
+  activeStatuses = Object.keys(STATUS_CONFIG);
+  table.search('').draw();
+  applyFilters();
+};
 </script>
 
 </body>
