@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>POI Viewer</title>
+
+<!-- Leaflet (OpenStreetMap) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- DataTables -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+<!-- toGeoJSON -->
+<script src="https://unpkg.com/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+
+<style>
+html, body {
+  margin: 0;
+  height: 100%;
+  font-family: Arial;
+}
+
+#container {
+  display: flex;
+  height: 100%;
+}
+
+#sidebar {
+  width: 35%;
+  padding: 10px;
+  overflow: auto;
+}
+
+#map {
+  flex: 1;
+}
+
+.color-box {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+@media (max-width: 768px) {
+  #container {
+    flex-direction: column;
+  }
+  #sidebar {
+    width: 100%;
+    height: 45%;
+  }
+  #map {
+    height: 55%;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<div id="container">
+  <div id="sidebar">
+    <table id="poiTable" class="display">
+      <thead>
+        <tr>
+          <th>POI</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+/* ------------------ MAP ------------------ */
+const map = L.map('map').setView([31.95, 35.93], 7);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+let poiLayer;
+let markers = [];
+
+/* ------------------ HELPERS ------------------ */
+const kmlColorToHex = (c) => {
+  if (!c || c.length !== 8) return '#ff0000';
+  return '#' + c.substring(6,8) + c.substring(4,6) + c.substring(2,4);
+};
+
+const getKmlUrl = () => {
+  const p = new URLSearchParams(window.location.search);
+  return p.get('kml');
+};
+
+/* ------------------ LOAD KML ------------------ */
+const kmlUrl = getKmlUrl();
+if (!kmlUrl) {
+  alert('Missing ?kml= parameter');
+  throw new Error('No KML provided');
+}
+
+fetch(kmlUrl)
+  .then(r => r.text())
+  .then(text => {
+    const dom = new DOMParser().parseFromString(text, 'text/xml');
+
+    // Extract styles
+    const styles = {};
+    dom.querySelectorAll('Style').forEach(s => {
+      const id = s.getAttribute('id');
+      const color = s.querySelector('IconStyle > color');
+      styles['#'+id] = {
+        color: color ? kmlColorToHex(color.textContent) : '#ff0000'
+      };
+    });
+
+    const geo = toGeoJSON.kml(dom);
+
+    geo.features.forEach(f => {
+      f.properties.color = styles[f.properties.styleUrl]?.color || '#ff0000';
+    });
+
+    buildMap(geo.features);
+    buildTable(geo.features);
+  });
+
+/* ------------------ MAP BUILD ------------------ */
+function buildMap(features) {
+  markers = [];
+
+  poiLayer = L.geoJSON(features, {
+    pointToLayer: (f, latlng) => {
+      const m = L.circleMarker(latlng, {
+        radius: 7,
+        color: f.properties.color,
+        fillColor: f.properties.color,
+        fillOpacity: 1
+      });
+      m.feature = f;
+      markers.push(m);
+      return m;
+    },
+    onEachFeature: (f, l) => {
+      l.bindPopup(`<b>${f.properties.name}</b>`);
+    }
+  }).addTo(map);
+
+  map.fitBounds(poiLayer.getBounds());
+}
+
+/* ------------------ TABLE ------------------ */
+let table;
+
+function buildTable(features) {
+  const tbody = $('#poiTable tbody');
+
+  features.forEach((f, i) => {
+    tbody.append(`
+      <tr data-index="${i}">
+        <td>
+          <span class="color-box" style="background:${f.properties.color}"></span>
+          ${f.properties.name || 'POI'}
+        </td>
+      </tr>
+    `);
+  });
+
+  table = $('#poiTable').DataTable();
+
+  // Click row → highlight POI
+  $('#poiTable tbody').on('click', 'tr', function () {
+    const idx = $(this).data('index');
+    highlightPOI(markers[idx]);
+  });
+
+  // Fit map to filtered table
+  table.on('draw', () => {
+    const visible = [];
+    table.rows({ filter: 'applied' }).every(function () {
+      visible.push(markers[this.index()]);
+    });
+    if (visible.length) {
+      const group = L.featureGroup(visible);
+      map.fitBounds(group.getBounds());
+    }
+  });
+}
+
+/* ------------------ INTERACTION ------------------ */
+function highlightPOI(marker) {
+  map.setView(marker.getLatLng(), 16);
+  marker.openPopup();
+
+  marker.setStyle({ radius: 12 });
+  setTimeout(() => marker.setStyle({ radius: 7 }), 800);
+}
+</script>
+
+</body>
+</html>
