@@ -75,7 +75,62 @@ async function addOrUpdateStudio(deviceId, camType){
     await addStudioCamera();
 }
 
-setTimeout(renderStudioVehicleList, 500);
+
+
+
+/* === PATCH: Mark right/center panels dynamically === */
+(function(){
+    // guess right panel as the panel that contains Studio / Live controls
+    const candidates = document.querySelectorAll('aside, .right, .panel, [id*="right"], [class*="right"]');
+    let right = null;
+    candidates.forEach(el=>{
+        if (!right && el.offsetWidth > 150) right = el;
+    });
+    if (right) right.setAttribute('data-right-panel','1');
+
+    // guess center panel as main video container
+    const center = document.querySelector('main, .center, .content, [id*="center"], [id*="video"]');
+    if (center) center.setAttribute('data-center-panel','1');
+})();
+
+
+/* === PATCH: Toggle handler === */
+(function(){
+    const btn = document.getElementById('toggleRightPanel');
+    if(btn){
+        btn.onclick = ()=>{
+            document.body.classList.toggle('right-hidden');
+        };
+    }
+})();
+
+
+/* === PATCH: Studio vehicle list observer === */
+(function(){
+    const select = document.getElementById('studioDeviceSelect');
+    if (!select) return;
+
+    const observer = new MutationObserver(()=>{
+        if (select.options.length > 1){
+            renderStudioVehicleList();
+        }
+    });
+
+    observer.observe(select, { childList:true });
+})();
+
+
+/* === VIEW ONLY TOGGLE === */
+(function(){
+    const btn = document.getElementById('toggleRightPanel');
+    if(!btn) return;
+
+    btn.textContent = "🎥 View Only";
+
+    btn.onclick = ()=>{
+        document.body.classList.toggle('view-only');
+    };
+})();
 
 </script>
 
@@ -395,6 +450,33 @@ header .sub {
 .vehicle-title{font-weight:600;margin-bottom:6px}
 .vehicle-actions{display:flex;gap:6px}
 .vehicle-actions button{flex:1}
+
+
+/* === PATCH: Robust Right Panel Toggle === */
+.right-hidden [data-right-panel]{display:none !important;}
+.right-hidden [data-center-panel]{width:100% !important;}
+
+
+/* ===== VIEW ONLY (VIDEO ONLY MODE) ===== */
+.view-only .studio-controls,
+.view-only .vehicle-list,
+.view-only .controls,
+.view-only .panel-controls,
+.view-only .left-panel,
+.view-only .right-panel,
+.view-only .command-panel,
+.view-only .studio-header {
+    display: none !important;
+}
+
+.view-only .studio-grid,
+.view-only .live-grid,
+.view-only .video-grid,
+.view-only #studioGrid,
+.view-only #liveGrid {
+    width: 100% !important;
+    height: 100% !important;
+}
 
 </style>
 
@@ -1620,7 +1702,62 @@ async function addOrUpdateStudio(deviceId, camType){
     await addStudioCamera();
 }
 
-setTimeout(renderStudioVehicleList, 500);
+
+
+
+/* === PATCH: Mark right/center panels dynamically === */
+(function(){
+    // guess right panel as the panel that contains Studio / Live controls
+    const candidates = document.querySelectorAll('aside, .right, .panel, [id*="right"], [class*="right"]');
+    let right = null;
+    candidates.forEach(el=>{
+        if (!right && el.offsetWidth > 150) right = el;
+    });
+    if (right) right.setAttribute('data-right-panel','1');
+
+    // guess center panel as main video container
+    const center = document.querySelector('main, .center, .content, [id*="center"], [id*="video"]');
+    if (center) center.setAttribute('data-center-panel','1');
+})();
+
+
+/* === PATCH: Toggle handler === */
+(function(){
+    const btn = document.getElementById('toggleRightPanel');
+    if(btn){
+        btn.onclick = ()=>{
+            document.body.classList.toggle('right-hidden');
+        };
+    }
+})();
+
+
+/* === PATCH: Studio vehicle list observer === */
+(function(){
+    const select = document.getElementById('studioDeviceSelect');
+    if (!select) return;
+
+    const observer = new MutationObserver(()=>{
+        if (select.options.length > 1){
+            renderStudioVehicleList();
+        }
+    });
+
+    observer.observe(select, { childList:true });
+})();
+
+
+/* === VIEW ONLY TOGGLE === */
+(function(){
+    const btn = document.getElementById('toggleRightPanel');
+    if(!btn) return;
+
+    btn.textContent = "🎥 View Only";
+
+    btn.onclick = ()=>{
+        document.body.classList.toggle('view-only');
+    };
+})();
 
 </script>
 
