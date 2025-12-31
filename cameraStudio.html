@@ -79,6 +79,7 @@ function addAllStudioCameras(){
 
 
 async function addStudioCameraWithType(deviceId, camType){
+    // بث واحد فقط لكل مركبة
     if (studioStreams[deviceId]) return;
 
     const imei = deviceImeis[deviceId];
@@ -87,12 +88,17 @@ async function addStudioCameraWithType(deviceId, camType){
         return;
     }
 
-    // إرسال أمر نوع واحد فقط
+    // إرسال أمر النوع المحدد فقط
     try {
         await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`);
-    } catch(e){}
+    } catch(e){
+        console.warn("[Studio] Command send failed", e);
+    }
 
+    // إنشاء Tile
     const { tile, video } = createStudioTile(deviceId, camType);
+
+    // تشغيل البث مع انتظار ومحاولات
     const started = await startStudioPlayback(imei, video);
 
     studioStreams[deviceId] = {
@@ -107,6 +113,7 @@ async function addStudioCameraWithType(deviceId, camType){
 
     saveStudioState();
 }
+
 
 function removeStudioCamera(key){
     const s = studioStreams[key];
