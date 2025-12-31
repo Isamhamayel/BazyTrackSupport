@@ -6,181 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <!-- FLV.js -->
-<script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js">
-/* ===================== STUDIO LOGIC ===================== */
-const studioStreams = {}; // key -> { player, video, tile, imei, camType, deviceId }
-let currentStudioLayout = "grid";
-
-function setStudioLayout(layout){
-    currentStudioLayout = layout;
-    studioGrid.classList.remove("grid","focus");
-    studioGrid.classList.add(layout);
-    saveStudioState();
-}
-
-function studioKey(deviceId, camType){ return `${deviceId}`; } // بث واحد فقط لكل مركبة
-
-function createStudioTile(deviceId, camType){
-    const key = studioKey(deviceId, camType);
-    if (studioStreams[key]) { showError("هذه المركبة مضافة بالفعل (بث واحد فقط)."); return; }
-
-    const imei = deviceImeis[deviceId];
-    if (!imei){ showError("لا يوجد IMEI لهذا الجهاز."); return; }
-
-    showError("");
-
-    try { await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`); } catch(e){}
-
-    const { tile, video } = createStudioTile(deviceId, camType);
-    const started = await startStudioPlayback(imei, video);
-
-    studioStreams[key] = {
-        deviceId, camType, imei,
-        tile, video,
-        player: started.player || null,
-        kind: started.type
-    };
-
-    saveStudioState();
-}
-function addAllStudioCameras(){
-    const camType = studioCamType.value; // livein أو liveout
-    showError("");
-
-    const deviceIds = Array.from(studioDeviceSelect.options)
-        .map(o => o.value)
-        .filter(Boolean);
-
-    if (!deviceIds.length){
-        showError("لا يوجد مركبات لإضافتها.");
-        return;
-    }
-
-    console.log("[Studio] Add ALL cameras, type =", camType);
-
-    (async ()=>{
-        for (const deviceId of deviceIds){
-
-            // بث واحد فقط لكل مركبة
-            if (studioStreams.hasOwnProperty(deviceId)){
-                console.log("[Studio] Skip (already added):", deviceId);
-                continue;
-            }
-
-            console.log("[Studio] Adding device:", deviceId, "type:", camType);
-
-            await addStudioCameraWithType(deviceId, camType);
-
-            // تأخير بسيط حتى لا نكسر السيرفر
-            await new Promise(r => setTimeout(r, 300));
-        }
-    })();
-}
-
-
-async function addStudioCameraWithType(deviceId, camType){
-    // بث واحد فقط لكل مركبة
-    if (studioStreams[deviceId]) return;
-
-    const imei = deviceImeis[deviceId];
-    if (!imei){
-        console.warn("[Studio] No IMEI for device", deviceId);
-        return;
-    }
-
-    // إرسال أمر النوع المحدد فقط
-    try {
-        await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`);
-    } catch(e){
-        console.warn("[Studio] Command send failed", e);
-    }
-
-    // إنشاء Tile
-    const { tile, video } = createStudioTile(deviceId, camType);
-
-    // تشغيل البث مع انتظار ومحاولات
-    const started = await startStudioPlayback(imei, video);
-
-    studioStreams[deviceId] = {
-        deviceId,
-        camType,
-        imei,
-        tile,
-        video,
-        player: started.player || null,
-        kind: started.type
-    };
-
-    saveStudioState();
-}
-
-
-function removeStudioCamera(key){
-    const s = studioStreams[key];
-    if (!s) return;
-
-    try {
-        if (s.player){
-            s.player.pause();
-            s.player.unload();
-            s.player.detachMediaElement();
-            s.player.destroy();
-        }
-    } catch(e){}
-
-    try {
-        s.video.pause();
-        s.video.removeAttribute("src");
-        s.video.load();
-    } catch(e){}
-
-    try { s.tile.remove(); } catch(e){}
-
-    delete studioStreams[key];
-    saveStudioState();
-}
-
-function stopAllStudioStreams(){
-    Object.keys(studioStreams).forEach(k => removeStudioCamera(k));
-}
-
-function clearStudio(){
-    stopAllStudioStreams();
-    saveStudioState();
-}
-
-function saveStudioState(){
-    try{
-        const state = {
-            layout: currentStudioLayout,
-            cams: Object.keys(studioStreams)
-        };
-        localStorage.setItem("bazygo_studio_state", JSON.stringify(state));
-    } catch(e){}
-}
-
-async function restoreStudioState(){
-    // ensure selects are populated
-    try{
-        const raw = localStorage.getItem("bazygo_studio_state");
-        if (!raw) return;
-        const state = JSON.parse(raw);
-
-        if (state.layout) setStudioLayout(state.layout);
-
-        if (Array.isArray(state.cams)){
-            for (const key of state.cams){
-                const deviceId = key;
-                if (!deviceId) continue;
-                if (![...studioDeviceSelect.options].some(o => o.value === deviceId)) continue;
-                studioDeviceSelect.value = deviceId;
-                // النوع حسب الخيار الحالي فقط
-                await addStudioCamera();
-            }
-        }
-    } catch(e){}
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
 
 <style>
 * { box-sizing:border-box; }
@@ -1600,26 +1426,26 @@ function saveStudioState(){
 }
 
 async function restoreStudioState(){
-    // ensure selects are populated
     try{
         const raw = localStorage.getItem("bazygo_studio_state");
         if (!raw) return;
+
         const state = JSON.parse(raw);
 
         if (state.layout) setStudioLayout(state.layout);
 
         if (Array.isArray(state.cams)){
-            for (const key of state.cams){
-                const [deviceId, camType] = key.split("_");
-                if (!deviceId || !camType) continue;
-                // only restore if option exists
-                if (![...studioDeviceSelect.options].some(o => o.value === deviceId)) continue;
+            for (const deviceId of state.cams){
+                if (!studioDeviceSelect.querySelector(`option[value="${deviceId}"]`)) continue;
+                if (studioStreams[deviceId]) continue;
+
                 studioDeviceSelect.value = deviceId;
-                studioCamType.value = camType;
                 await addStudioCamera();
             }
         }
-    } catch(e){}
+    } catch(e){
+        console.warn("Restore studio failed", e);
+    }
 }
 function toggleFullscreen(el){
     if (!document.fullscreenElement){
