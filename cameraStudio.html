@@ -43,9 +43,8 @@ function createStudioTile(deviceId, camType){
 
     saveStudioState();
 }
-
 function addAllStudioCameras(){
-    const selectedCamType = studioCamType.value; // اقفل النوع مرة واحدة
+    const camType = studioCamType.value; // livein أو liveout
     showError("");
 
     const deviceIds = Array.from(studioDeviceSelect.options)
@@ -57,34 +56,51 @@ function addAllStudioCameras(){
         return;
     }
 
+    console.log("[Studio] Add ALL cameras, type =", camType);
+
     (async ()=>{
         for (const deviceId of deviceIds){
-            if (studioStreams[deviceId]) continue; // بث واحد فقط لكل مركبة
 
-            // لا تغيّر النوع إطلاقاً
-            studioDeviceSelect.value = deviceId;
+            // بث واحد فقط لكل مركبة
+            if (studioStreams.hasOwnProperty(deviceId)){
+                console.log("[Studio] Skip (already added):", deviceId);
+                continue;
+            }
 
-            await addStudioCameraWithType(deviceId, selectedCamType);
-            await new Promise(r => setTimeout(r, 250));
+            console.log("[Studio] Adding device:", deviceId, "type:", camType);
+
+            await addStudioCameraWithType(deviceId, camType);
+
+            // تأخير بسيط حتى لا نكسر السيرفر
+            await new Promise(r => setTimeout(r, 300));
         }
     })();
 }
+
 
 async function addStudioCameraWithType(deviceId, camType){
     if (studioStreams[deviceId]) return;
 
     const imei = deviceImeis[deviceId];
-    if (!imei) return;
+    if (!imei){
+        console.warn("[Studio] No IMEI for device", deviceId);
+        return;
+    }
 
-    // إرسال أمر النوع المحدد فقط
-    try { await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`); } catch(e){}
+    // إرسال أمر نوع واحد فقط
+    try {
+        await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`);
+    } catch(e){}
 
     const { tile, video } = createStudioTile(deviceId, camType);
     const started = await startStudioPlayback(imei, video);
 
     studioStreams[deviceId] = {
-        deviceId, camType, imei,
-        tile, video,
+        deviceId,
+        camType,
+        imei,
+        tile,
+        video,
         player: started.player || null,
         kind: started.type
     };
@@ -1598,6 +1614,22 @@ async function restoreStudioState(){
         }
     } catch(e){}
 }
+function toggleFullscreen(el){
+    if (!document.fullscreenElement){
+        if (el.requestFullscreen){
+            el.requestFullscreen();
+        } else if (el.webkitRequestFullscreen){
+            el.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen){
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen){
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
 </script>
 
 
