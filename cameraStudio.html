@@ -170,19 +170,29 @@ async function addStudioCamera(){
 }
 
 function addAllStudioCameras(){
-    const camType = studioCamType.value; // livein أو liveout
+    const camType = studioCamType.value; // النوع المحدد فقط
     showError("");
-    const ids = Array.from(studioDeviceSelect.options).map(o=>o.value).filter(Boolean);
-    if (!ids.length){ showError("لا يوجد مركبات لإضافتها."); return; }
+
+    const deviceIds = Array.from(studioDeviceSelect.options)
+        .map(o => o.value)
+        .filter(Boolean);
+
+    if (!deviceIds.length){
+        showError("لا يوجد مركبات لإضافتها.");
+        return;
+    }
 
     (async ()=>{
-        for (const deviceId of ids){
+        for (const deviceId of deviceIds){
             const key = studioKey(deviceId, camType);
-            if (studioStreams[key]) continue; // موجودة
+            if (studioStreams[key]) continue; // المركبة مضافة مسبقاً
+
+            // ثبّت النوع المختار (مهم)
             studioDeviceSelect.value = deviceId;
             studioCamType.value = camType;
+
             await addStudioCamera();
-            await new Promise(r=>setTimeout(r,150));
+            await new Promise(r => setTimeout(r, 200));
         }
     })();
 }
