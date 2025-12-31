@@ -1301,27 +1301,63 @@ async function startStudioPlayback(imei, video){
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
     const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
 
+    const maxAttempts = 20;      // ~20 ثانية
+    const retryDelay  = 1000;    // 1 ثانية
+
+    // ===== HLS (iOS / Safari) =====
     if (isHls){
-        // انتظر جاهزية HLS بشكل خفيف
-        try { await waitForHlsReady(hlsUrl, 15000); } catch(e){}
-        video.src = hlsUrl;
-        video.load();
-        video.play().catch(()=>{});
-        return { type: "hls" };
-    } else {
-        const player = flvjs.createPlayer({
-            type:"flv",
-            url: flvUrl,
-            isLive: true,
-            hasAudio: false,
-            hasVideo: true
-        });
-        player.attachMediaElement(video);
-        player.load();
-        player.play().catch(()=>{});
-        return { type: "flv", player };
+        for (let i = 0; i < maxAttempts; i++){
+            try {
+                const ready = await waitForHlsReady(hlsUrl, 3000);
+                if (ready){
+                    video.src = hlsUrl;
+                    video.load();
+                    await video.play().catch(()=>{});
+                    return { type: "hls", player: null };
+                }
+            } catch(e){}
+            await new Promise(r => setTimeout(r, retryDelay));
+        }
+        throw new Error("HLS stream not ready after retries");
     }
+
+    // ===== FLV (Chrome / Edge) =====
+    let player = null;
+
+    for (let i = 0; i < maxAttempts; i++){
+        try {
+            if (player){
+                player.destroy();
+                player = null;
+            }
+
+            player = flvjs.createPlayer({
+                type: "flv",
+                url: flvUrl,
+                isLive: true,
+                hasAudio: false,
+                enableStashBuffer: false
+            });
+
+            player.attachMediaElement(video);
+            player.load();
+            await player.play();
+
+            return { type: "flv", player };
+        } catch(e){
+            try {
+                if (player){
+                    player.destroy();
+                    player = null;
+                }
+            } catch(_){}
+            await new Promise(r => setTimeout(r, retryDelay));
+        }
+    }
+
+    throw new Error("FLV stream not ready after retries");
 }
+
 
 async function addStudioCamera(){
     const deviceId = studioDeviceSelect.value;
