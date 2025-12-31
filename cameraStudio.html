@@ -22,128 +22,6 @@ function studioKey(deviceId, camType){ return `${deviceId}`; } // بث واحد 
 
 function createStudioTile(deviceId, camType){
     const key = studioKey(deviceId, camType);
-    const tile = document.createElement("div");
-    tile.className = "studio-tile";
-    tile.id = "tile_" + key;
-
-    const title = document.createElement("div");
-    title.className = "studio-title";
-    const name = deviceNames[deviceId] || ("جهاز " + deviceId);
-    title.textContent = `${name} • ${camType}`;
-
-    const video = document.createElement("video");
-    video.muted = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.setAttribute("webkit-playsinline","");
-
-    // iOS: allow manual tap
-    video.addEventListener("click", ()=> video.play().catch(()=>{}));
-
-    const close = document.createElement("button");
-    close.className = "studio-close";
-    close.type = "button";
-    close.textContent = "✕";
-    close.onclick = () => removeStudioCamera(key);
-
-    tile.appendChild(video);
-    const fs = document.createElement("button");
-    fs.className = "studio-fullscreen";
-    fs.type = "button";
-    fs.textContent = "⛶";
-    fs.onclick = () => toggleFullscreen(tile);
-
-    tile.appendChild(title);
-    tile.appendChild(close);
-    tile.appendChild(fs);
-    studioGrid.appendChild(tile);
-
-    return { tile, video };
-}
-
-async function playFLVToElement(url, videoEl, maxAttempts = 25){
-    return new Promise((resolve, reject) => {
-        let attempt = 0;
-        let player = null;
-
-        function cleanup(){
-            try{
-                if (player){
-                    player.pause();
-                    player.unload();
-                    player.detachMediaElement();
-                    player.destroy();
-                }
-            }catch(e){}
-            player = null;
-            try{
-                videoEl.pause();
-                videoEl.removeAttribute("src");
-                videoEl.load();
-            }catch(e){}
-        }
-
-        function tryPlay(){
-            attempt++;
-            cleanup();
-
-            player = flvjs.createPlayer({
-                type: "flv",
-                url,
-                isLive: true,
-                hasAudio: false,
-                hasVideo: true,
-                enableStashBuffer: false
-            });
-
-            player.attachMediaElement(videoEl);
-            player.load();
-
-            player.play().then(()=> resolve(player)).catch(()=>{});
-
-            player.on(flvjs.Events.ERROR, () => {
-                cleanup();
-                if (attempt < maxAttempts){
-                    setTimeout(tryPlay, 1200);
-                } else {
-                    reject(new Error("FLV failed"));
-                }
-            });
-        }
-
-        tryPlay();
-    });
-}
-
-async function playWithWaitToElement(imei, videoEl){
-    const isHls = isIOS || isSafari;
-    const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
-    const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
-
-    if (isHls){
-        const ready = await waitForHlsReady(hlsUrl, 25000);
-        if (!ready) throw new Error("HLS not ready");
-        videoEl.src = hlsUrl;
-        videoEl.load();
-        await videoEl.play().catch(()=>{});
-        return { kind: "hls", player: null };
-    } else {
-        const player = await playFLVToElement(flvUrl, videoEl, 25);
-        return { kind: "flv", player };
-    }
-}
-
-async function startStudioPlayback(imei, video){
-    const started = await playWithWaitToElement(imei, video);
-    return { type: started.kind, player: started.player };
-}
-
-async function addStudioCamera(){
-    const deviceId = studioDeviceSelect.value;
-    const camType  = studioCamType.value;
-    if (!deviceId) { showError("اختر مركبة أولاً."); return; }
-
-    const key = studioKey(deviceId, camType);
     if (studioStreams[key]) { showError("هذه المركبة مضافة بالفعل (بث واحد فقط)."); return; }
 
     const imei = deviceImeis[deviceId];
@@ -151,12 +29,9 @@ async function addStudioCamera(){
 
     showError("");
 
-    // send command once when adding
-    try { await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`).catch(()=>{}); } catch(e){}
+    try { await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`); } catch(e){}
 
     const { tile, video } = createStudioTile(deviceId, camType);
-
-    // start stream
     const started = await startStudioPlayback(imei, video);
 
     studioStreams[key] = {
@@ -170,7 +45,7 @@ async function addStudioCamera(){
 }
 
 function addAllStudioCameras(){
-    const camType = studioCamType.value; // النوع المحدد فقط
+    const selectedCamType = studioCamType.value; // اقفل النوع مرة واحدة
     showError("");
 
     const deviceIds = Array.from(studioDeviceSelect.options)
@@ -184,15 +59,13 @@ function addAllStudioCameras(){
 
     (async ()=>{
         for (const deviceId of deviceIds){
-            const key = studioKey(deviceId, camType);
-            if (studioStreams[key]) continue; // المركبة مضافة مسبقاً
+            if (studioStreams[deviceId]) continue; // بث واحد فقط لكل مركبة
 
-            // ثبّت النوع المختار (مهم)
+            // لا تغيّر النوع إطلاقاً
             studioDeviceSelect.value = deviceId;
-            studioCamType.value = camType;
 
-            await addStudioCamera();
-            await new Promise(r => setTimeout(r, 200));
+            await addStudioCameraWithType(deviceId, selectedCamType);
+            await new Promise(r => setTimeout(r, 250));
         }
     })();
 }
