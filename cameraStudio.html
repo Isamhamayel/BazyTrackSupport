@@ -1353,6 +1353,39 @@ async function addStudioCamera(){
 
     saveStudioState();
 }
+async function addStudioCameraWithType(deviceId, camType){
+    if (studioStreams[deviceId]) return;
+
+    const imei = deviceImeis[deviceId];
+    if (!imei){
+        console.warn("[Studio] No IMEI for device", deviceId);
+        return;
+    }
+
+    // إرسال أمر نوع واحد فقط
+    try {
+        await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`);
+    } catch(e){
+        console.warn("[Studio] Command send failed", e);
+    }
+
+    const { tile, video } = createStudioTile(deviceId, camType);
+
+    const started = await startStudioPlayback(imei, video);
+
+    studioStreams[deviceId] = {
+        deviceId,
+        camType,
+        imei,
+        tile,
+        video,
+        player: started.player || null,
+        kind: started.type
+    };
+
+    saveStudioState();
+}
+
 
 function addAllStudioCameras(){
     const selectedCamType = studioCamType.value; // النوع المختار فقط
