@@ -1297,40 +1297,33 @@ async function playWithWaitToElement(imei, videoEl){
 }
 
 async function startStudioPlayback(imei, video){
-    const isHls = isIOS || isSafari;
     const flvUrl = `https://${STREAM_HOST}/live/0/${imei}.flv`;
     const hlsUrl = `https://${STREAM_HOST}/live/0/${imei}.m3u8`;
+    const isHls = isIOS || isSafari;
 
-    const maxAttempts = 20;      // ~20 ثانية
-    const retryDelay  = 1000;    // 1 ثانية
+    const maxAttempts = 20;
+    const retryDelay = 1000;
 
-    // ===== HLS (iOS / Safari) =====
+    // ===== iOS / HLS =====
     if (isHls){
         for (let i = 0; i < maxAttempts; i++){
-            try {
-                const ready = await waitForHlsReady(hlsUrl, 3000);
-                if (ready){
-                    video.src = hlsUrl;
-                    video.load();
-                    await video.play().catch(()=>{});
-                    return { type: "hls", player: null };
-                }
-            } catch(e){}
+            const ok = await waitForHlsReady(hlsUrl, 3000);
+            if (ok){
+                video.src = hlsUrl;
+                video.load();
+                await video.play().catch(()=>{});
+                return { type: "hls", player: null };
+            }
             await new Promise(r => setTimeout(r, retryDelay));
         }
-        throw new Error("HLS stream not ready after retries");
+        throw new Error("HLS not ready");
     }
 
-    // ===== FLV (Chrome / Edge) =====
-    let player = null;
-
+    // ===== FLV =====
     for (let i = 0; i < maxAttempts; i++){
-        try {
-            if (player){
-                player.destroy();
-                player = null;
-            }
+        let player = null;
 
+        try {
             player = flvjs.createPlayer({
                 type: "flv",
                 url: flvUrl,
@@ -1341,54 +1334,89 @@ async function startStudioPlayback(imei, video){
 
             player.attachMediaElement(video);
             player.load();
-            await player.play();
 
+            // ⏱️ ننتظر فعليًا data مش بس play()
+            await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject("timeout"), 3000);
+
+                player.on(flvjs.Events.METADATA_ARRIVED, () => {
+                    clearTimeout(timer);
+                    resolve();
+                });
+
+                player.on(flvjs.Events.ERROR, () => {
+                    clearTimeout(timer);
+                    reject("flv error");
+                });
+            });
+
+            video.play().catch(()=>{});
             return { type: "flv", player };
+
         } catch(e){
-            try {
-                if (player){
-                    player.destroy();
-                    player = null;
-                }
-            } catch(_){}
+            try { player && player.destroy(); } catch(_){}
             await new Promise(r => setTimeout(r, retryDelay));
         }
     }
 
-    throw new Error("FLV stream not ready after retries");
+    throw new Error("FLV not ready after retries");
 }
-
 
 async function addStudioCamera(){
     const deviceId = studioDeviceSelect.value;
     const camType  = studioCamType.value;
-    if (!deviceId) { showError("اختر مركبة أولاً."); return; }
 
-    const key = studioKey(deviceId, camType);
-    if (studioStreams[key]) { showError("هذه المركبة مضافة بالفعل (بث واحد فقط)."); return; }
+    if (!deviceId){
+        showError("اختر مركبة أولاً.");
+        return;
+    }
+
+    // بث واحد فقط لكل مركبة
+    if (studioStreams[deviceId]){
+        showError("هذه المركبة مضافة بالفعل.");
+        return;
+    }
 
     const imei = deviceImeis[deviceId];
-    if (!imei){ showError("لا يوجد IMEI لهذا الجهاز."); return; }
+    if (!imei){
+        showError("لا يوجد IMEI لهذا الجهاز.");
+        return;
+    }
 
     showError("");
 
-    // send command once when adding
-    try { await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`).catch(()=>{}); } catch(e){}
+    // أرسل أمر تشغيل البث مرة واحدة فقط
+    try {
+        await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`);
+    } catch(e){}
 
+    // أنشئ Tile
     const { tile, video } = createStudioTile(deviceId, camType);
 
-    // start stream
-    const started = await startStudioPlayback(imei, video);
-
-    studioStreams[key] = {
-        deviceId, camType, imei,
-        tile, video,
-        player: started.player || null,
-        kind: started.type
+    // سجّل فورًا (حتى لو البث لم يبدأ)
+    studioStreams[deviceId] = {
+        deviceId,
+        camType,
+        imei,
+        tile,
+        video,
+        player: null,
+        kind: "pending" // connecting
     };
+
+    try {
+        const started = await startStudioPlayback(imei, video);
+        studioStreams[deviceId].player = started.player || null;
+        studioStreams[deviceId].kind   = started.type; // flv / hls
+    } catch(e){
+        studioStreams[deviceId].kind = "failed";
+    }
 
     saveStudioState();
 }
+
+
+
 async function addStudioCameraWithType(deviceId, camType){
     if (studioStreams[deviceId]) return;
 
