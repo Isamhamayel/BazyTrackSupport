@@ -70,6 +70,28 @@ function addAllStudioCameras(){
     })();
 }
 
+async function addStudioCameraWithType(deviceId, camType){
+    if (studioStreams[deviceId]) return;
+
+    const imei = deviceImeis[deviceId];
+    if (!imei) return;
+
+    // إرسال أمر النوع المحدد فقط
+    try { await fetch(`${WEBAPP_URL}?type=${camType}&deviceId=${deviceId}&imei=${imei}`); } catch(e){}
+
+    const { tile, video } = createStudioTile(deviceId, camType);
+    const started = await startStudioPlayback(imei, video);
+
+    studioStreams[deviceId] = {
+        deviceId, camType, imei,
+        tile, video,
+        player: started.player || null,
+        kind: started.type
+    };
+
+    saveStudioState();
+}
+
 function removeStudioCamera(key){
     const s = studioStreams[key];
     if (!s) return;
@@ -439,7 +461,10 @@ header .sub {
   .studio-grid.focus{grid-template-columns:1fr;grid-template-rows:auto}
   .studio-grid.focus .studio-tile:first-child{grid-row:auto}
 }
+
+.controls-row .btn{display:inline-flex;align-items:center;justify-content:center}
 </style>
+
 </head>
 
 <body>
@@ -529,6 +554,8 @@ header .sub {
             </div>
 
             <div class="controls-row">
+                <button class="btn" type="button" onclick="addStudioCamera()">➕ إضافة كاميرا</button>
+
 <button class="btn secondary" type="button" onclick="addAllStudioCameras()">➕➕ إضافة كل الكاميرات</button>
                 <button class="btn secondary" type="button" onclick="setStudioLayout('grid')">⬛ 2×2</button>
                 <button class="btn secondary" type="button" onclick="setStudioLayout('focus')">🎯 1+3</button>
@@ -554,6 +581,8 @@ header .sub {
         </div>
 
         <div class="controls-row">
+                <button class="btn" type="button" onclick="addStudioCamera()">➕ إضافة كاميرا</button>
+
             <button id="downloadBtn" class="btn secondary" type="button" onclick="openExternalDownload()" style="display:none;">
                 ⬇ فتح FLV في المتصفح
             </button>
@@ -1477,15 +1506,30 @@ async function addStudioCamera(){
 }
 
 function addAllStudioCameras(){
-    // add both front/back for selected device
-    const deviceId = studioDeviceSelect.value;
-    if (!deviceId) { showError("اختر مركبة أولاً."); return; }
-    const current = studioCamType.value;
-    ["livein","liveout"].forEach(t=>{
-        studioCamType.value = t;
-        addStudioCamera();
-    });
-    studioCamType.value = current;
+    const selectedCamType = studioCamType.value; // النوع المختار فقط
+    showError("");
+
+    const deviceIds = Array.from(studioDeviceSelect.options)
+        .map(o => o.value)
+        .filter(Boolean);
+
+    if (!deviceIds.length){
+        showError("لا يوجد مركبات لإضافتها.");
+        return;
+    }
+
+    (async ()=>{
+        for (const deviceId of deviceIds){
+            // بث واحد فقط لكل مركبة (لا نسمح بتكرارها لا داخلي ولا خارجي)
+            if (studioStreams[deviceId]) continue;
+
+            // لا نغيّر نوع الكاميرا داخل الحلقة إطلاقاً
+            await addStudioCameraWithType(deviceId, selectedCamType);
+
+            // تهدئة بسيطة حتى لا نرسل أوامر كثيرة مرة واحدة
+            await new Promise(r => setTimeout(r, 250));
+        }
+    })();
 }
 
 function removeStudioCamera(key){
