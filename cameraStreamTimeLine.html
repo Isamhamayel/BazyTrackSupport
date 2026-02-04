@@ -713,18 +713,25 @@ async function playWithWait(imei, mode, meta = {}) {
         cleanPlayer();
         videoPlayer.src = hlsUrl;
         videoPlayer.load();
-
-        videoPlayer.play()
-            .then(() => {
-                showLoading(false);
-                setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
-            })
-            .catch(() => {
-                showLoading(false);
-                showError("اضغط على الفيديو لبدء التشغيل (iOS).");
-                setStatus("بانتظار تشغيل يدوي");
-            });
-
+        
+        const onCanPlay = () => {
+            videoPlayer.removeEventListener("canplay", onCanPlay);
+        
+            videoPlayer.play()
+                .then(() => {
+                    showLoading(false);
+                    showError("");
+                    setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
+                })
+                .catch(() => {
+                    showLoading(false);
+                    showError("اضغط على الفيديو لبدء التشغيل (iOS).");
+                    setStatus("بانتظار تشغيل يدوي");
+                });
+        };
+        
+        videoPlayer.addEventListener("canplay", onCanPlay);
+        
         return;
     }
 
