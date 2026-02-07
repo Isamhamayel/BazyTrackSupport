@@ -701,39 +701,37 @@ async function playWithWait(imei, mode, meta = {}) {
 
     /* ===== HLS (iOS / Safari) ===== */
     if (isHls) {
-        const ready = await waitForHlsReady(hlsUrl, 25000);
-
-        if (!ready) {
-            showLoading(false);
-            showError("البث غير جاهز حالياً. حاول لاحقاً.");
-            setStatus("تعذر تشغيل HLS");
-            return;
-        }
-
-        cleanPlayer();
-        videoPlayer.src = hlsUrl;
-        videoPlayer.load();
+            cleanPlayer();
+            videoPlayer.src = hlsUrl;
+            videoPlayer.load();
         
-        const onCanPlay = () => {
-            videoPlayer.removeEventListener("canplay", onCanPlay);
+            const tryPlay = () => {
+                videoPlayer.removeEventListener("canplay", tryPlay);
+                videoPlayer.removeEventListener("loadedmetadata", tryPlay);
         
-            videoPlayer.play()
-                .then(() => {
-                    showLoading(false);
-                    showError("");
-                    setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
-                })
-                .catch(() => {
-                    showLoading(false);
-                    showError("اضغط على الفيديو لبدء التشغيل (iOS).");
-                    setStatus("بانتظار تشغيل يدوي");
-                });
-        };
+                videoPlayer.play()
+                    .then(() => {
+                        showLoading(false);
+                        showError("");
+                        setStatus(mode === "live" ? "البث يعمل" : "التسجيل يعمل");
+                    })
+                    .catch(() => {
+                        showLoading(false);
+                        showError("اضغط على الفيديو لبدء التشغيل (iOS).");
+                        setStatus("بانتظار تشغيل يدوي");
+                    });
+            };
         
-        videoPlayer.addEventListener("canplay", onCanPlay);
+            if (videoPlayer.readyState >= 2) {
+                tryPlay();
+            } else {
+                videoPlayer.addEventListener("canplay", tryPlay, { once: true });
+                videoPlayer.addEventListener("loadedmetadata", tryPlay, { once: true });
+            }
         
-        return;
+            return; // ✅ هذا ضروري
     }
+
 
     /* ===== FLV (Desktop Browsers) ===== */
     try {
