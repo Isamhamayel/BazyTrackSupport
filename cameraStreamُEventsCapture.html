@@ -454,6 +454,7 @@ header .sub {
                 <select id="capturedDeviceSelect" onchange="loadCapturedMedia()">
                     <option value="">اختر الجهاز</option>
                 </select>
+                <input type="date" id="capturedDatePicker" onchange="loadCapturedMedia()">
             </div>
 
             <div class="media-kind-row">
@@ -468,7 +469,7 @@ header .sub {
             </div>
 
             <div class="media-note">
-                ملاحظة: التوكن لا يوجد داخل الصفحة. الصفحة تطلب البيانات من Google Apps Script فقط.
+                ملاحظة: التوكن لا يوجد داخل الصفحة. الصفحة تطلب البيانات من Google Apps Script فقط. التاريخ الافتراضي هو اليوم ويمكن تغييره.
             </div>
         </div>
 
@@ -615,6 +616,7 @@ const capturedPanel    = document.getElementById("capturedPanel");
 const deviceSelect     = document.getElementById("deviceSelect");
 const liveDeviceSelect = document.getElementById("liveDeviceSelect");
 const capturedDeviceSelect = document.getElementById("capturedDeviceSelect");
+const capturedDatePicker = document.getElementById("capturedDatePicker");
 const datePicker       = document.getElementById("datePicker");
 const hourPicker       = document.getElementById("hourPicker");
 const fileList         = document.getElementById("fileList");
@@ -1026,6 +1028,28 @@ function openCurrentMedia(){
     window.open(currentMediaUrl, "_blank");
 }
 
+function getCapturedDateRangeMs(){
+    if (!capturedDatePicker || !capturedDatePicker.value) return null;
+
+    // BazyGo reports/camera dates are handled as Asia/Amman time.
+    // Use +03:00 so selected date means 00:00–23:59:59 Amman time.
+    const d = capturedDatePicker.value; // yyyy-mm-dd
+    return {
+        fromMs: Date.parse(`${d}T00:00:00.000+03:00`),
+        toMs: Date.parse(`${d}T23:59:59.999+03:00`)
+    };
+}
+
+function filterCapturedItemsBySelectedDate(items){
+    const range = getCapturedDateRangeMs();
+    if (!range) return items;
+
+    return (items || []).filter(x => {
+        const t = Number(x.captureTime || x.createdAt || 0);
+        return t >= range.fromMs && t <= range.toMs;
+    });
+}
+
 async function loadCapturedMedia(){
     const deviceId = capturedDeviceSelect.value;
     if (!deviceId){
@@ -1046,11 +1070,21 @@ async function loadCapturedMedia(){
     showError("");
 
     const size = capturedKind === "video" ? 100 : 50;
-    const url =
+    const dateRange = getCapturedDateRangeMs();
+
+    let url =
         `${WEBAPP_URL}?type=turboMedia` +
         `&imei=${encodeURIComponent(imei)}` +
         `&kind=${encodeURIComponent(capturedKind)}` +
-        `&page=1&size=${size}`;
+        `&page=1&size=${size}` +
+        `&pages=10`;
+
+    // These params are optional. Update Apps Script proxy to use them server-side.
+    // The HTML also filters client-side below as a safety net.
+    if (dateRange) {
+        url += `&fromMs=${encodeURIComponent(dateRange.fromMs)}` +
+               `&toMs=${encodeURIComponent(dateRange.toMs)}`;
+    }
 
     try {
         const response = await fetch(url, { cache: "no-store" });
@@ -1058,6 +1092,7 @@ async function loadCapturedMedia(){
 
         const items = extractTurboItems(json);
         capturedItems = normalizeCapturedItems(items);
+        capturedItems = filterCapturedItemsBySelectedDate(capturedItems);
 
         if (capturedKind === "image") {
             capturedItems = capturedItems.filter(x => x.kind === "image");
@@ -1566,6 +1601,7 @@ async function loadFiles(){
     const mm   = String(today.getMonth()+1).padStart(2,"0");
     const dd   = String(today.getDate()).padStart(2,"0");
     datePicker.value = `${yyyy}-${mm}-${dd}`;
+    if (capturedDatePicker) capturedDatePicker.value = `${yyyy}-${mm}-${dd}`;
 })();
 
 for (let h=0; h<24; h++){
