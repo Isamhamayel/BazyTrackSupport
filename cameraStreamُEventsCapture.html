@@ -442,7 +442,7 @@ header .sub {
                 <select id="deviceSelect" onchange="loadFiles()">
                     <option value="">اختر الجهاز</option>
                 </select>
-                <input type="date" id="datePicker" onchange="loadFiles()">
+                <input type="date" id="datePicker" onchange="onSharedDateChanged('history')">
                 <select id="hourPicker" onchange="loadFiles()">
                     <option value="">الساعة</option>
                 </select>
@@ -473,8 +473,8 @@ header .sub {
             </div>
 
             <div class="cam-buttons">
-                <button class="cam-btn" onclick="startLive('livein')">📡 كاميرا داخلية (livein)</button>
-                <button class="cam-btn" onclick="startLive('liveout')">📡 كاميرا خارجية (liveout)</button>
+                <button id="btnLiveIn" class="cam-btn" onclick="startLive('livein')">📡 كاميرا داخلية</button>
+                <button id="btnLiveOut" class="cam-btn" onclick="startLive('liveout')">📡 كاميرا خارجية</button>
             </div>
 
             <div class="info-text">
@@ -486,14 +486,14 @@ header .sub {
         <div id="capturedPanel" class="card" style="display:none;">
             <div class="card-header">
                 <h3>الصور والفيديوهات الملتقطة</h3>
-              
+                <small>اختر الجهاز والتاريخ والكاميرا</small>
             </div>
 
             <div class="filters">
                 <select id="capturedDeviceSelect" onchange="loadCapturedMedia()">
                     <option value="">اختر الجهاز</option>
                 </select>
-                <input type="date" id="capturedDatePicker" onchange="loadCapturedMedia()">
+                <input type="date" id="capturedDatePicker" onchange="onSharedDateChanged('captured')">
             </div>
 
             <div class="media-kind-row">
@@ -510,10 +510,12 @@ header .sub {
             </div>
 
             <div id="capturedList" class="media-list">
-                <div class="info-text">اختر جهازاً لعرض الصور والفيديوهات الملتقطة  </div>
+                <div class="info-text">اختر جهازاً لعرض الصور والفيديوهات.</div>
             </div>
 
-           
+            <div class="media-note">
+                التاريخ والكاميرا المختارة سيتم تطبيقهما على كل التبويبات.
+            </div>
         </div>
 
     </div>
@@ -633,7 +635,7 @@ let lastDeviceIdForDate = null;
 let lastDateForDate = null;
 let selectedFile = null;
 
-// Captured media from TurboHive
+// Captured media from Media
 let capturedKind = "image";
 let capturedChannelFilter = "all";
 let capturedItems = [];
@@ -672,6 +674,8 @@ const fileList         = document.getElementById("fileList");
 const btnC1            = document.getElementById("btnC1");
 const btnC2            = document.getElementById("btnC2");
 const btnCAll          = document.getElementById("btnCAll");
+const btnLiveIn        = document.getElementById("btnLiveIn");
+const btnLiveOut       = document.getElementById("btnLiveOut");
 
 const btnCapturedImages = document.getElementById("btnCapturedImages");
 const btnCapturedVideos = document.getElementById("btnCapturedVideos");
@@ -1025,6 +1029,9 @@ async function playVideo(filename, deviceId){
 }
 
 async function startLive(kind){
+    const selectedCamera = kind === "livein" ? 2 : (kind === "liveout" ? 1 : "all");
+    syncCameraSelection(selectedCamera, false);
+
     const deviceId = liveDeviceSelect.value;
     if (!deviceId || !deviceImeis[deviceId]){
         showError("اختر جهازاً مزوداً بكاميرا من تبويب البث المباشر.");
@@ -1046,7 +1053,52 @@ async function startLive(kind){
 }
 
 
-/* ===================== CAPTURED MEDIA (TURBOHIVE VIA WEBAPP PROXY) ===================== */
+/* ===================== SHARED FILTERS ===================== */
+function syncCameraSelection(c, reload = true){
+    cameraFilter = c;
+    capturedChannelFilter = c;
+
+    btnC1.classList.toggle("active", String(c) === "1");
+    btnC2.classList.toggle("active", String(c) === "2");
+    btnCAll.classList.toggle("active", c === "all");
+
+    btnCapturedCamAll.classList.toggle("active", c === "all");
+    btnCapturedCamOut.classList.toggle("active", String(c) === "1");
+    btnCapturedCamIn.classList.toggle("active", String(c) === "2");
+
+    if (btnLiveOut) btnLiveOut.classList.toggle("active", String(c) === "1");
+    if (btnLiveIn) btnLiveIn.classList.toggle("active", String(c) === "2");
+
+    if (!reload) return;
+
+    lastDeviceIdForDate = null;
+    allFilesForDate = [];
+
+    if (deviceSelect.value && datePicker.value) loadFiles();
+    if (capturedDeviceSelect.value && capturedDatePicker.value) loadCapturedMedia();
+}
+
+function syncDateSelection(value, reload = true){
+    if (!value) return;
+
+    if (datePicker && datePicker.value !== value) datePicker.value = value;
+    if (capturedDatePicker && capturedDatePicker.value !== value) capturedDatePicker.value = value;
+
+    if (!reload) return;
+
+    lastDeviceIdForDate = null;
+    allFilesForDate = [];
+
+    if (deviceSelect.value && datePicker.value) loadFiles();
+    if (capturedDeviceSelect.value && capturedDatePicker.value) loadCapturedMedia();
+}
+
+function onSharedDateChanged(source){
+    const value = source === "captured" ? capturedDatePicker.value : datePicker.value;
+    syncDateSelection(value, true);
+}
+
+/* ===================== CAPTURED MEDIA ===================== */
 function setCapturedKind(kind){
     capturedKind = kind;
     selectedCapturedIndex = -1;
@@ -1057,12 +1109,8 @@ function setCapturedKind(kind){
 }
 
 function setCapturedChannelFilter(channel){
-    capturedChannelFilter = channel;
     selectedCapturedIndex = -1;
-    btnCapturedCamAll.classList.toggle("active", channel === "all");
-    btnCapturedCamOut.classList.toggle("active", String(channel) === "1");
-    btnCapturedCamIn.classList.toggle("active", String(channel) === "2");
-    loadCapturedMedia();
+    syncCameraSelection(channel, true);
 }
 
 function getCapturedChannelLabel(channel){
@@ -1105,9 +1153,7 @@ function openCurrentMedia(){
 function getCapturedDateRangeMs(){
     if (!capturedDatePicker || !capturedDatePicker.value) return null;
 
-    // BazyGo reports/camera dates are handled as Asia/Amman time.
-    // Use +03:00 so selected date means 00:00–23:59:59 Amman time.
-    const d = capturedDatePicker.value; // yyyy-mm-dd
+        const d = capturedDatePicker.value; // yyyy-mm-dd
     return {
         fromMs: Date.parse(`${d}T00:00:00.000+03:00`),
         toMs: Date.parse(`${d}T23:59:59.999+03:00`)
@@ -1139,11 +1185,11 @@ async function loadCapturedMedia(){
         return;
     }
 
-    capturedList.innerHTML = '<div class="info-text">جارِ تحميل الصور والفيديوهات  </div>';
+    capturedList.innerHTML = '<div class="info-text">جارِ تحميل الصور والفيديوهات...</div>';
     selectedCapturedIndex = -1;
     currentMediaUrl = "";
     cleanCapturedPreview();
-    setStatus("تحميل الصور والفيديوهات  ");
+    setStatus("تحميل الصور والفيديوهات...");
     showError("");
 
     const size = capturedKind === "video" ? 100 : 50;
@@ -1156,16 +1202,12 @@ async function loadCapturedMedia(){
         `&page=1&size=${size}` +
         `&pages=10`;
 
-    // These params are optional. Update Apps Script proxy to use them server-side.
-    // The HTML also filters client-side below as a safety net.
-    if (dateRange) {
+        if (dateRange) {
         url += `&fromMs=${encodeURIComponent(dateRange.fromMs)}` +
                `&toMs=${encodeURIComponent(dateRange.toMs)}`;
     }
 
-    // Optional server-side filter if your Apps Script/TurboHive proxy supports channel.
-    // Client-side channel filtering is still applied below.
-    if (capturedChannelFilter !== "all") {
+        if (capturedChannelFilter !== "all") {
         url += `&channel=${encodeURIComponent(capturedChannelFilter)}`;
     }
 
@@ -1188,22 +1230,20 @@ async function loadCapturedMedia(){
         }
 
         renderCapturedList();
-        setStatus(`تم تحميل ${capturedItems.length} ملف  `);
+        setStatus(`تم تحميل ${capturedItems.length} ملف`);
 
     } catch(err){
-        console.error("TurboHive media load error:", err);
-        capturedList.innerHTML = '<div class="info-text">حدث خطأ أثناء تحميل ملفات </div>';
-        showError("فشل تحميل الصور والفيديوهات من ");
-        setStatus("فشل تحميل ");
+        console.error("Media media load error:", err);
+        capturedList.innerHTML = '<div class="info-text">حدث خطأ أثناء تحميل الملفات.</div>';
+        showError("فشل تحميل الصور والفيديوهات.");
+        setStatus("فشل تحميل الملفات");
     }
 }
 
 function extractTurboItems(json){
-    // Supports our Apps Script proxy: {data:{items:[...]}}
-    if (json && json.data && Array.isArray(json.data.items)) return json.data.items;
+        if (json && json.data && Array.isArray(json.data.items)) return json.data.items;
 
-    // Supports direct TurboHive response: {data:{data:[...]}}
-    if (json && json.data && Array.isArray(json.data.data)) return json.data.data;
+        if (json && json.data && Array.isArray(json.data.data)) return json.data.data;
 
     // Supports simple arrays if returned later
     if (Array.isArray(json)) return json;
@@ -1246,8 +1286,7 @@ function normalizeCapturedItems(items){
 
 function inferChannelFromFileName(fileName){
     const name = String(fileName || "").toUpperCase();
-    // Common Jimi/TurboHive names: ..._F_09.jpg = front/out, ..._I_10.jpg = inside/cabin
-    if (name.includes("_F_")) return 1;
+        if (name.includes("_F_")) return 1;
     if (name.includes("_I_")) return 2;
     return "";
 }
@@ -1326,7 +1365,7 @@ function renderCapturedList(){
             <div id="capturedItem_${idx}" class="media-item" onclick="openCapturedMedia(${idx})">
                 ${thumb}
                 <div class="media-body">
-                    <div class="media-title">${icon} ${escapeHtml(mediaTitle)} <span style="font-weight:normal;color:#6b7280;">(Amman)</span></div>
+                    <div class="media-title">${icon} ${escapeHtml(mediaTitle)}</div>
                     <div class="media-meta">${escapeHtml(channel)} · ${escapeHtml(mediaTypeLabel)} ${size ? " · " + escapeHtml(size) : ""}</div>
                 </div>
             </div>
@@ -1398,7 +1437,7 @@ function openCapturedMedia(index){
         videoPlayer.style.display = "none";
         imagePlayer.style.display = "block";
         imagePlayer.src = item.url;
-        setStatus(`عرض صورة ${getCapturedChannelLabel(item.channel)} · ${formatMediaTime(item.captureTime || item.createdAt)} Amman`);
+        setStatus(`عرض صورة ${getCapturedChannelLabel(item.channel)} · ${formatMediaTime(item.captureTime || item.createdAt)}`);
         return;
     }
 
@@ -1416,7 +1455,7 @@ function playCapturedVideo(item){
     const ext = item.extension || getFileExtension(url);
 
     showLoading(true, "جارِ تشغيل الفيديو الملتقط...");
-    setStatus(`تشغيل فيديو ${getCapturedChannelLabel(item.channel)} · ${formatMediaTime(item.captureTime || item.createdAt)} Amman`);
+    setStatus(`تشغيل فيديو ${getCapturedChannelLabel(item.channel)} · ${formatMediaTime(item.captureTime || item.createdAt)}`);
 
     videoPlayer.style.display = "block";
     imagePlayer.style.display = "none";
@@ -1491,14 +1530,7 @@ function playCapturedVideo(item){
 
 /* ===================== CAMERA FILTER ===================== */
 function setCam(c){
-    cameraFilter = c;
-    btnC1.classList.toggle("active", c===1);
-    btnC2.classList.toggle("active", c===2);
-    btnCAll.classList.toggle("active", c==="all");
-
-    lastDeviceIdForDate = null;
-    allFilesForDate = [];
-    loadFiles();
+    syncCameraSelection(c, true);
 }
 
 /* ===================== LOAD DEVICE NAMES/DROPDOWN ===================== */
@@ -1736,8 +1768,7 @@ async function loadFiles(){
     const yyyy = today.getFullYear();
     const mm   = String(today.getMonth()+1).padStart(2,"0");
     const dd   = String(today.getDate()).padStart(2,"0");
-    datePicker.value = `${yyyy}-${mm}-${dd}`;
-    if (capturedDatePicker) capturedDatePicker.value = `${yyyy}-${mm}-${dd}`;
+    syncDateSelection(`${yyyy}-${mm}-${dd}`, false);
 })();
 
 for (let h=0; h<24; h++){
@@ -1745,6 +1776,7 @@ for (let h=0; h<24; h++){
     hourPicker.innerHTML += `<option value="${hh}">${hh}:00</option>`;
 }
 
+syncCameraSelection(cameraFilter, false);
 showTab('history');
 loadDeviceDropdown();
 setStatus("جاهز للاستخدام. اختر جهازاً ثم تسجيل أو بث مباشر.");
