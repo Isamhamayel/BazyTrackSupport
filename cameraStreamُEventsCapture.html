@@ -2,30 +2,596 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>مركز الكاميرات</title>
+<title>BazyGo – مشغل التسجيلات والبث</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- FLV.js -->
 <script src="https://cdn.jsdelivr.net/npm/flv.js/dist/flv.min.js"></script>
+<!-- MPEGTS.js for captured .ts videos -->
 <script src="https://cdn.jsdelivr.net/npm/mpegts.js/dist/mpegts.min.js"></script>
+
 <style>
-:root{--bg:#f6f7fb;--card:#fff;--ink:#172033;--muted:#64748b;--line:#e5e7eb;--blue:#2563eb;--blue2:#1d4ed8;--shadow:0 12px 30px rgba(15,23,42,.08);--shadow-sm:0 1px 3px rgba(15,23,42,.08)}*{box-sizing:border-box}html,body{min-height:100%}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:var(--bg);color:var(--ink)}body.embed-mode{background:transparent}.app-shell{min-height:100vh;padding:12px}body.embed-mode .app-shell{padding:8px}.app-top{border-radius:24px;background:radial-gradient(circle at top left,rgba(96,165,250,.38),transparent 30%),linear-gradient(135deg,#0f172a,#1d4ed8);color:#fff;padding:14px 16px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:14px}body.embed-mode .app-top{display:none}.brand-title{display:flex;align-items:center;gap:10px;min-width:0}.brand-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:16px;background:rgba(255,255,255,.16);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);font-size:22px}.brand-copy{min-width:0}.brand-copy h1{margin:0;font-size:17px;line-height:1.3;font-weight:900}.brand-copy p{margin:2px 0 0;font-size:12px;color:rgba(255,255,255,.78);font-weight:700}.direct-url-chip{flex:0 0 auto;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.12);border-radius:999px;padding:7px 10px;font-size:11px;font-weight:900;color:rgba(255,255,255,.92)}.tabs{margin-top:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border:0;background:transparent}.tab{min-height:42px;border-radius:16px;border:1px solid var(--line);background:#fff;color:var(--muted);padding:8px 10px;cursor:pointer;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:var(--shadow-sm);transition:.15s ease}.tab:hover{transform:translateY(-1px);border-color:#bfdbfe;color:var(--blue2)}.tab.active{border-color:var(--blue);color:#fff;background:var(--blue);box-shadow:0 10px 20px rgba(37,99,235,.22)}.container{display:grid;grid-template-columns:minmax(320px,420px) minmax(0,1fr);gap:10px;height:calc(100vh - 128px);margin-top:10px}body.embed-mode .container{height:calc(100vh - 62px)}.left,.right{width:auto;min-width:0;border:0;padding:0;background:transparent}.left{display:flex;flex-direction:column;gap:10px;overflow:hidden}.right{display:flex;flex-direction:column;gap:8px;overflow:hidden}.card{background:var(--card);border-radius:22px;box-shadow:var(--shadow-sm);padding:12px;border:1px solid rgba(226,232,240,.96);min-height:0;overflow:hidden}.card-header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}.card-header h3{margin:0;font-size:14px;line-height:1.35;font-weight:900;color:#0f172a}.card-header small{display:block;margin-top:2px;font-size:11px;font-weight:700;color:var(--muted)}.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.filters select,.filters input[type=date]{width:100%;min-width:0;min-height:38px;padding:8px 10px;border-radius:14px;border:1px solid #dbe3ef;font-size:12px;font-weight:800;color:#172033;background:#fff;outline:none}.filters select:focus,.filters input[type=date]:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.12)}.cam-buttons,.media-kind-row,.controls-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}.cam-btn,.btn{min-height:32px;padding:7px 10px;border-radius:999px;border:1px solid #dbe3ef;cursor:pointer;background:#fff;color:#334155;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;gap:5px;transition:.15s ease}.cam-btn:hover,.btn.secondary:hover{border-color:#bfdbfe;background:#eff6ff;color:var(--blue2)}.cam-btn.active{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 8px 16px rgba(37,99,235,.18)}.btn{background:#111827;color:#fff;border-color:#111827}.btn.secondary{background:#fff;color:#172033;border-color:#dbe3ef}.btn:disabled{opacity:.5;cursor:default}.file-list,.media-list{overflow-y:auto;margin-top:4px;padding-inline-end:2px}.file-list{max-height:calc(100vh - 360px)}.media-list{max-height:calc(100vh - 410px)}.file-item{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;padding:9px 10px;margin-bottom:7px;border-radius:16px;border:1px solid #e5e7eb;cursor:pointer;transition:.15s;font-size:12px}.file-item:hover{background:#eff6ff;border-color:#60a5fa}.file-item b{font-size:14px;color:#0f172a}.time-label{font-size:11px;font-weight:800;color:var(--muted);margin:0}.info-text{font-size:11px;line-height:1.6;color:var(--muted);font-weight:700}#statusBar{font-size:11px;color:#334155;background:#fff;border:1px solid var(--line);border-radius:999px;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:var(--shadow-sm)}#statusText{min-width:0;display:flex;align-items:center;gap:6px}#statusValue{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.badge{padding:4px 8px;border-radius:999px;font-size:10px;font-weight:900;background:#dbeafe;color:#1d4ed8}#errorMessage{display:none;padding:9px 10px;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:14px;font-size:12px;font-weight:800}#videoWrapper{position:relative;flex:1;min-height:280px;display:flex;align-items:center;justify-content:center;background:#020617;border-radius:24px;overflow:hidden;box-shadow:var(--shadow)}#videoPlayer,#imagePlayer{width:100%;height:100%;max-height:100%;border-radius:24px;background:#000;object-fit:contain}#imagePlayer{display:none;max-width:100%;max-height:100%;width:auto;height:auto}#loadingOverlay{position:absolute;inset:0;background:rgba(15,23,42,.78);display:none;justify-content:center;align-items:center;flex-direction:column;color:#e5e7eb;font-size:12px;font-weight:800;backdrop-filter:blur(4px)}.spinner{width:28px;height:28px;border:3px solid rgba(226,232,240,.55);border-top:3px solid #60a5fa;border-radius:50%;animation:spin .7s linear infinite;margin-bottom:8px}@keyframes spin{100%{transform:rotate(360deg)}}#loadingCountdown{font-size:11px;margin-top:2px;color:#cbd5e1}.media-item{background:#fff;padding:8px;margin-bottom:8px;border-radius:18px;border:1px solid #e5e7eb;cursor:pointer;transition:.15s;font-size:11px;display:flex;gap:10px;align-items:center;min-height:94px}.media-item:hover{background:#eff6ff;border-color:#60a5fa}.media-item.active{background:#dbeafe;border-color:var(--blue)}.media-thumb{width:122px;height:78px;border-radius:16px;object-fit:cover;background:#111827;border:1px solid #e5e7eb;flex:0 0 122px}.media-body{flex:1;min-width:0}.media-title{font-size:13px;font-weight:900;color:#0f172a;direction:rtl;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.media-meta{font-size:11px;color:var(--muted);margin-top:5px;font-weight:800}.gallery-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:20;width:44px;height:64px;border:none;border-radius:999px;background:rgba(15,23,42,.62);color:#fff;font-size:34px;line-height:1;display:none;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.28)}.gallery-nav:hover{background:rgba(37,99,235,.88)}.gallery-nav:disabled{opacity:.25;cursor:default}.gallery-prev{left:12px}.gallery-next{right:12px}.media-note{font-size:11px;line-height:1.5;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:8px 10px;margin-top:8px;font-weight:800}#timelineCard{margin-top:0!important;padding:10px!important;background:#fff!important;border-radius:18px!important;border:1px solid #e5e7eb!important;box-shadow:var(--shadow-sm)}#timelineSlider{width:100%;accent-color:var(--blue)}#timelineLabel{font-size:12px!important;color:#475569!important;font-weight:900;text-align:center;margin-top:4px!important}#timelineInfo{padding:0 4px 4px}.quick-help{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}.quick-help span{border-radius:16px;background:#fff;border:1px solid var(--line);padding:8px;color:var(--muted);font-size:11px;font-weight:900;text-align:center}@media(max-width:900px){.app-shell{padding:8px}.app-top{border-radius:20px;padding:12px}.brand-icon{width:38px;height:38px}.brand-copy h1{font-size:15px}.brand-copy p{display:none}.direct-url-chip{display:none}.tabs{gap:6px;position:sticky;top:0;z-index:40;padding:6px 0;background:var(--bg)}.tab{min-height:38px;font-size:12px;border-radius:14px;padding:7px 6px}.container{display:flex;flex-direction:column;height:auto;margin-top:6px}body.embed-mode .container{height:auto}.left,.right{width:100%}.right{min-height:58vh}.card{border-radius:18px;padding:10px}.filters{grid-template-columns:1fr;gap:7px}.file-list{max-height:28vh}.media-list{max-height:34vh}.media-thumb{width:104px;height:72px;flex-basis:104px}.media-item{min-height:86px;border-radius:16px}#videoWrapper{min-height:340px;height:48vh;border-radius:20px}#videoPlayer,#imagePlayer{border-radius:20px}.gallery-nav{width:40px;height:56px;font-size:30px}.quick-help{display:none}}
+* { box-sizing:border-box; }
+body { margin:0; font-family:'Tahoma', Arial, sans-serif; background:#f3f4f6; color:#111827; }
+
+header {
+    padding:4px 10px;
+    background:linear-gradient(90deg,#1e3a8a,#2563eb);
+    font-size:12px;
+    font-weight:bold;
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+header .sub {
+    font-size:11px;
+    font-weight:normal;
+    opacity:.85;
+}
+
+.tabs {
+    display:flex;
+    background:#fff;
+    border-bottom:1px solid #e5e7eb;
+}
+.tab {
+    padding:8px 12px;
+    cursor:pointer;
+    font-size:13px;
+    border-bottom:3px solid transparent;
+    color:#6b7280;
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+.tab.active {
+    border-color:#2563eb;
+    color:#1d4ed8;
+    font-weight:bold;
+    background:#eff6ff;
+}
+
+.container {
+    display:flex;
+    height:calc(100vh - 60px);
+}
+
+/* LEFT PANEL */
+.left {
+    width:40%;
+    background:#f9fafb;
+    border-left:1px solid #e5e7eb;
+    padding:8px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+}
+
+.card {
+    background:#fff;
+    border-radius:8px;
+    box-shadow:0 1px 2px rgba(0,0,0,0.04);
+    padding:8px;
+    border:1px solid #e5e7eb;
+}
+
+.card-header {
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:6px;
+}
+.card-header h3 {
+    margin:0;
+    font-size:12px;
+    font-weight:bold;
+}
+.card-header small {
+    font-size:10px;
+    color:#6b7280;
+}
+
+.filters {
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px;
+    margin-bottom:6px;
+}
+
+.filters select,
+.filters input[type=date] {
+    padding:4px 6px;
+    border-radius:6px;
+    border:1px solid #d1d5db;
+    font-size:11px;
+    background:#f9fafb;
+    min-width:90px;
+}
+
+.cam-buttons {
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px;
+    margin-bottom:6px;
+}
+.cam-btn {
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid #d1d5db;
+    cursor:pointer;
+    background:#f9fafb;
+    font-size:10px;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+}
+.cam-btn.active {
+    background:#2563eb;
+    color:#fff;
+    border-color:#2563eb;
+}
+
+.file-list {
+    max-height:50vh;
+    overflow-y:auto;
+    margin-top:4px;
+}
+
+.file-item {
+    background:#f9fafb;
+    padding:7px 8px;
+    margin-bottom:5px;
+    border-radius:6px;
+    border:1px solid #e5e7eb;
+    cursor:pointer;
+    transition:.15s;
+    font-size:11px;
+}
+.file-item:hover {
+    background:#eff6ff;
+    border-color:#2563eb;
+}
+.time-label {
+    font-size:10px;
+    color:#6b7280;
+    margin-bottom:1px;
+}
+
+.info-text {
+    font-size:10px;
+    color:#6b7280;
+}
+
+/* RIGHT PANEL */
+.right {
+    width:60%;
+    padding:8px;
+    background:#f3f4f6;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+
+#statusBar {
+    font-size:10px;
+    color:#374151;
+    background:#e5e7eb;
+    border-radius:999px;
+    padding:4px 8px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+#statusText {
+    display:flex;
+    align-items:center;
+    gap:4px;
+}
+
+.badge {
+    padding:2px 6px;
+    border-radius:999px;
+    font-size:9px;
+    background:#d1fae5;
+    color:#047857;
+}
+
+.controls-row {
+    display:flex;
+    gap:4px;
+    flex-wrap:wrap;
+}
+
+.btn {
+    border:none;
+    border-radius:999px;
+    padding:5px 8px;
+    font-size:10px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    background:#111827;
+    color:#fff;
+}
+.btn.secondary {
+    background:#e5e7eb;
+    color:#111827;
+}
+.btn:disabled {
+    opacity:.5;
+    cursor:default;
+}
+
+#errorMessage {
+    display:none;
+    padding:5px 7px;
+    background:#fef2f2;
+    color:#b91c1c;
+    border:1px solid:#fecaca;
+    border-radius:6px;
+    font-size:10px;
+}
+
+/* VIDEO WRAPPER */
+#videoWrapper {
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#000;
+    border-radius:10px;
+    overflow:hidden;
+}
+
+#videoPlayer {
+    width:100%;
+    height:100%;
+    max-height:100%;
+    border-radius:10px;
+    background:#000;
+}
+
+/* LOADING OVERLAY */
+#loadingOverlay {
+    position:absolute;
+    inset:0;
+    background:rgba(17,24,39,0.8);
+    display:none;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+    color:#e5e7eb;
+    font-size:11px;
+}
+.spinner {
+    width:24px; height:24px;
+    border:3px solid rgba(209,213,219,0.6);
+    border-top:3px solid #3b82f6;
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+    margin-bottom:6px;
+}
+@keyframes spin { 100% { transform:rotate(360deg); } }
+#loadingCountdown {
+    font-size:10px;
+    margin-top:2px;
+    color:#9ca3af;
+}
+
+
+/* CAPTURED MEDIA */
+#imagePlayer {
+    display:none;
+    max-width:100%;
+    max-height:100%;
+    width:auto;
+    height:auto;
+    border-radius:10px;
+    object-fit:contain;
+    background:#000;
+}
+
+.media-kind-row {
+    display:flex;
+    gap:4px;
+    flex-wrap:wrap;
+    margin-bottom:6px;
+}
+
+.media-list {
+    max-height:50vh;
+    overflow-y:auto;
+    margin-top:4px;
+}
+
+.media-item {
+    background:#f9fafb;
+    padding:8px;
+    margin-bottom:8px;
+    border-radius:10px;
+    border:1px solid #e5e7eb;
+    cursor:pointer;
+    transition:.15s;
+    font-size:11px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    min-height:92px;
+}
+.media-item:hover {
+    background:#eff6ff;
+    border-color:#2563eb;
+}
+.media-item.active {
+    background:#dbeafe;
+    border-color:#2563eb;
+}
+.media-thumb {
+    width:118px;
+    height:78px;
+    border-radius:10px;
+    object-fit:cover;
+    background:#111827;
+    border:1px solid #e5e7eb;
+    flex:0 0 118px;
+}
+.media-body {
+    flex:1;
+    min-width:0;
+}
+.media-title {
+    font-size:12px;
+    font-weight:bold;
+    color:#111827;
+    direction:rtl;
+    text-align:right;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+}
+.media-meta {
+    font-size:10px;
+    color:#6b7280;
+    margin-top:5px;
+}
+.gallery-nav {
+    position:absolute;
+    top:50%;
+    transform:translateY(-50%);
+    z-index:20;
+    width:44px;
+    height:64px;
+    border:none;
+    border-radius:999px;
+    background:rgba(17,24,39,0.62);
+    color:#fff;
+    font-size:34px;
+    line-height:1;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,0.25);
+}
+.gallery-nav:hover {
+    background:rgba(37,99,235,0.82);
+}
+.gallery-nav:disabled {
+    opacity:.25;
+    cursor:default;
+}
+.gallery-prev { left:10px; }
+.gallery-next { right:10px; }
+.media-note {
+    font-size:10px;
+    color:#92400e;
+    background:#fffbeb;
+    border:1px solid #fde68a;
+    border-radius:6px;
+    padding:5px 7px;
+    margin-top:6px;
+}
+
+/* MOBILE */
+@media(max-width:900px){
+    .container { flex-direction:column; height:auto; }
+    .left { width:100%; }
+    .right { width:100%; }
+    .file-list { max-height:30vh; }
+    .media-list { max-height:38vh; }
+    .media-thumb { width:104px; height:72px; flex-basis:104px; }
+    .media-item { min-height:86px; }
+    .gallery-nav { width:40px; height:56px; font-size:30px; }
+}
 </style>
 </head>
+
 <body>
 
-<div class="app-shell">
-  <header class="app-top">
-    <div class="brand-title"><div class="brand-icon">🎥</div><div class="brand-copy"><h1>مركز الكاميرات</h1><p>التسجيلات، البث المباشر، والصور والفيديوهات في صفحة واحدة</p></div></div>
-    <div class="direct-url-chip">جاهز للعرض داخل النظام</div>
-  </header>
-  <div class="tabs"><span id="tabHistory" class="tab active" onclick="showTab('history')">📁 التسجيلات</span><span id="tabLive" class="tab" onclick="showTab('live')">📡 المباشر</span><span id="tabCaptured" class="tab" onclick="showTab('captured')">🖼 الصور والفيديو</span></div>
-  <div class="container">
+<header>
+    <div>🎥 مشغل التسجيلات والبث – BazyGo</div>
+    <div class="sub">FLV للمتصفحات · LL-HLS للآيفون · بدون صوت</div>
+</header>
+
+<div class="tabs">
+    <span id="tabHistory" class="tab active" onclick="showTab('history')">📁 التسجيلات</span>
+    <span id="tabLive" class="tab" onclick="showTab('live')">📡 البث المباشر</span>
+    <span id="tabCaptured" class="tab" onclick="showTab('captured')">🖼 الصور والفيديو</span>
+</div>
+
+<div class="container">
+
+    <!-- LEFT SIDE -->
     <div class="left">
-      <div id="historyPanel" class="card"><div class="card-header"><div><h3>التسجيلات</h3><small>اختر الجهاز والتاريخ والساعة</small></div></div><div class="filters"><select id="deviceSelect" onchange="onSharedDeviceChanged('history')"><option value="">اختر الجهاز</option></select><input type="date" id="datePicker" onchange="onSharedDateChanged('history')"><select id="hourPicker" onchange="loadFiles()"><option value="">كل الساعات</option></select></div><div class="cam-buttons"><button id="btnC1" class="cam-btn active" onclick="setCam(1)">🚗 خارجية</button><button id="btnC2" class="cam-btn" onclick="setCam(2)">👤 داخلية</button><button id="btnCAll" class="cam-btn" onclick="setCam('all')">🔁 الكل</button></div><div id="fileList" class="file-list"><div class="info-text">ابدأ باختيار جهاز وتاريخ لعرض التسجيلات.</div></div></div>
-      <div id="livePanel" class="card" style="display:none;"><div class="card-header"><div><h3>البث المباشر</h3><small>اختر الجهاز والكاميرا</small></div></div><div class="filters"><select id="liveDeviceSelect" onchange="onSharedDeviceChanged('live')"><option value="">اختر جهاز البث</option></select></div><div class="cam-buttons"><button id="btnLiveOut" class="cam-btn" onclick="startLive('liveout')">🚗 خارجية</button><button id="btnLiveIn" class="cam-btn" onclick="startLive('livein')">👤 داخلية</button></div><div class="info-text">سيتم إعادة الاتصال تلقائياً إذا انقطع البث.</div></div>
-      <div id="capturedPanel" class="card" style="display:none;"><div class="card-header"><div><h3>الصور والفيديوهات</h3><small>اختر الجهاز والتاريخ والكاميرا</small></div></div><div class="filters"><select id="capturedDeviceSelect" onchange="onSharedDeviceChanged('captured')"><option value="">اختر الجهاز</option></select><input type="date" id="capturedDatePicker" onchange="onSharedDateChanged('captured')"></div><div class="media-kind-row"><button id="btnCapturedImages" class="cam-btn active" onclick="setCapturedKind('image')">🖼 صور</button><button id="btnCapturedVideos" class="cam-btn" onclick="setCapturedKind('video')">🎞 فيديو</button><button id="btnCapturedAll" class="cam-btn" onclick="setCapturedKind('all')">🔁 الكل</button><button class="cam-btn" onclick="loadCapturedMedia()">🔄 تحديث</button></div><div class="media-kind-row"><button id="btnCapturedCamAll" class="cam-btn active" onclick="setCapturedChannelFilter('all')">🔁 كل الكاميرات</button><button id="btnCapturedCamOut" class="cam-btn" onclick="setCapturedChannelFilter(1)">🚗 خارجية</button><button id="btnCapturedCamIn" class="cam-btn" onclick="setCapturedChannelFilter(2)">👤 داخلية</button></div><div id="capturedList" class="media-list"><div class="info-text">اختر جهازاً لعرض الصور والفيديوهات.</div></div><div class="media-note">التاريخ والجهاز والكاميرا يتم تطبيقها على كل التبويبات.</div></div>
+
+        <!-- HISTORY PANEL -->
+        <div id="historyPanel" class="card">
+            <div class="card-header">
+                <h3>التسجيلات حسب الجهاز والوقت</h3>
+                <small>اختر الجهاز، التاريخ، والساعة</small>
+            </div>
+
+            <div class="filters">
+                <select id="deviceSelect" onchange="onSharedDeviceChanged('history')">
+                    <option value="">اختر الجهاز</option>
+                </select>
+                <input type="date" id="datePicker" onchange="onSharedDateChanged('history')">
+                <select id="hourPicker" onchange="loadFiles()">
+                    <option value="">الساعة</option>
+                </select>
+            </div>
+
+            <div class="cam-buttons">
+                <button id="btnC1" class="cam-btn active" onclick="setCam(1)">🎦 كاميرا 1</button>
+                <button id="btnC2" class="cam-btn" onclick="setCam(2)">🎦 كاميرا 2</button>
+                <button id="btnCAll" class="cam-btn" onclick="setCam('all')">🔁 كل الكاميرات</button>
+            </div>
+
+            <div id="fileList" class="file-list">
+                <div class="info-text">ابدأ باختيار جهاز وتاريخ وساعة لعرض التسجيلات المتوفرة.</div>
+            </div>
+        </div>
+
+        <!-- LIVE PANEL -->
+        <div id="livePanel" class="card" style="display:none;">
+            <div class="card-header">
+                <h3>البث المباشر</h3>
+                <small>اختر جهازاً ثم نوع الكاميرا</small>
+            </div>
+
+            <div class="filters">
+                <select id="liveDeviceSelect" onchange="onSharedDeviceChanged('live')">
+                    <option value="">اختر جهاز البث</option>
+                </select>
+            </div>
+
+            <div class="cam-buttons">
+                <button id="btnLiveIn" class="cam-btn" onclick="startLive('livein')">📡 كاميرا داخلية</button>
+                <button id="btnLiveOut" class="cam-btn" onclick="startLive('liveout')">📡 كاميرا خارجية</button>
+            </div>
+
+            <div class="info-text">
+                سيتم إعادة الاتصال تلقائياً إذا انقطع البث (حتى ٥ محاولات).
+            </div>
+        </div>
+
+        <!-- CAPTURED MEDIA PANEL -->
+        <div id="capturedPanel" class="card" style="display:none;">
+            <div class="card-header">
+                <h3>الصور والفيديوهات الملتقطة</h3>
+                <small>اختر الجهاز والتاريخ والكاميرا</small>
+            </div>
+
+            <div class="filters">
+                <select id="capturedDeviceSelect" onchange="onSharedDeviceChanged('captured')">
+                    <option value="">اختر الجهاز</option>
+                </select>
+                <input type="date" id="capturedDatePicker" onchange="onSharedDateChanged('captured')">
+            </div>
+
+            <div class="media-kind-row">
+                <button id="btnCapturedImages" class="cam-btn active" onclick="setCapturedKind('image')">🖼 صور</button>
+                <button id="btnCapturedVideos" class="cam-btn" onclick="setCapturedKind('video')">🎞 فيديو</button>
+                <button id="btnCapturedAll" class="cam-btn" onclick="setCapturedKind('all')">🔁 الكل</button>
+                <button class="cam-btn" onclick="loadCapturedMedia()">🔄 تحديث</button>
+            </div>
+
+            <div class="media-kind-row">
+                <button id="btnCapturedCamAll" class="cam-btn active" onclick="setCapturedChannelFilter('all')">🔁 كل الكاميرات</button>
+                <button id="btnCapturedCamOut" class="cam-btn" onclick="setCapturedChannelFilter(1)">🚗 خارجية CH1</button>
+                <button id="btnCapturedCamIn" class="cam-btn" onclick="setCapturedChannelFilter(2)">👤 داخلية CH2</button>
+            </div>
+
+            <div id="capturedList" class="media-list">
+                <div class="info-text">اختر جهازاً لعرض الصور والفيديوهات.</div>
+            </div>
+
+            <div class="media-note">
+                التاريخ والكاميرا المختارة سيتم تطبيقهما على كل التبويبات.
+            </div>
+        </div>
+
     </div>
-    <div class="right"><div id="statusBar"><div id="statusText"><span>الحالة:</span><span id="statusValue">جاهز للاستخدام</span></div><span class="badge" id="modeBadge">تسجيلات</span></div><div class="controls-row"><button id="downloadBtn" class="btn secondary" type="button" onclick="openExternalDownload()" style="display:none;">⬇ فتح التسجيل</button><button id="mediaOpenBtn" class="btn secondary" type="button" onclick="openCurrentMedia()" style="display:none;">🔗 فتح الملف</button></div><div id="errorMessage"></div><div id="videoWrapper"><button id="mediaPrevBtn" class="gallery-nav gallery-prev" type="button" onclick="openPrevCapturedMedia()" title="السابق">‹</button><button id="mediaNextBtn" class="gallery-nav gallery-next" type="button" onclick="openNextCapturedMedia()" title="التالي">›</button><video id="videoPlayer" controls playsinline webkit-playsinline muted onclick="manualPlayInIOS()"></video><img id="imagePlayer" alt="Captured image"><div id="loadingOverlay"><div class="spinner"></div><div id="loadingText">جارِ تفعيل الفيديو...</div><div id="loadingCountdown"></div></div></div><div id="timelineCard"><input id="timelineSlider" type="range" min="0" max="0" value="0" step="1" oninput="timelineDragging()" onchange="timelineDropped()"><div id="timelineLabel">اسحب لاختيار وقت التسجيل في هذا اليوم</div></div><div id="timelineInfo" class="info-text">شريط الوقت يغطي جميع التسجيلات في اليوم المحدد، ويمكن تشغيل عدة تسجيلات متتالية.</div><div class="quick-help"><span>اختر الجهاز</span><span>حدد التاريخ</span><span>شغّل التسجيل</span></div></div>
-  </div>
+
+    <!-- RIGHT SIDE -->
+    <div class="right">
+
+        <div id="statusBar">
+            <div id="statusText">
+                <span>الحالة:</span>
+                <span id="statusValue">جاهز للاستخدام</span>
+            </div>
+            <div>
+                <span class="badge" id="modeBadge">تسجيلات</span>
+            </div>
+        </div>
+
+        <div class="controls-row">
+            <button id="downloadBtn" class="btn secondary" type="button" onclick="openExternalDownload()" style="display:none;">
+                ⬇ فتح FLV في المتصفح
+            </button>
+            <button id="mediaOpenBtn" class="btn secondary" type="button" onclick="openCurrentMedia()" style="display:none;">
+                🔗 فتح الملف
+            </button>
+        </div>
+
+        <div id="errorMessage"></div>
+
+        <div id="videoWrapper">
+            <button id="mediaPrevBtn" class="gallery-nav gallery-prev" type="button" onclick="openPrevCapturedMedia()" title="السابق">‹</button>
+            <button id="mediaNextBtn" class="gallery-nav gallery-next" type="button" onclick="openNextCapturedMedia()" title="التالي">›</button>
+
+            <video id="videoPlayer"
+                   controls
+                   playsinline
+                   webkit-playsinline
+                   muted
+                   onclick="manualPlayInIOS()"></video>
+
+            <img id="imagePlayer" alt="Captured image">
+
+            <div id="loadingOverlay">
+                <div class="spinner"></div>
+                <div id="loadingText">جارِ تفعيل الفيديو...</div>
+                <div id="loadingCountdown"></div>
+            </div>
+        </div>
+
+        <div class="info-text">
+            ⚠︎ التشغيل بدون صوت دائماً. على أجهزة iPhone قد تحتاج للضغط على الفيديو لبدء التشغيل.
+        </div>
+
+        <!-- TIMELINE SLIDER -->
+        <div id="timelineCard" style="margin-top:10px; padding:5px; background:#fff; border-radius:8px; border:1px solid #e5e7eb;">
+            <input id="timelineSlider"
+                   type="range"
+                   min="0"
+                   max="0"
+                   value="0"
+                   step="1"
+                   style="width:100%;"
+                   oninput="timelineDragging()"
+                   onchange="timelineDropped()">
+            <div id="timelineLabel"
+                 style="font-size:12px; color:#555; text-align:center; margin-top:3px;">
+                اسحب لاختيار وقت التسجيل في هذا اليوم
+            </div>
+
+           
+        </div>
+
+        <div id="timelineInfo" class="info-text">
+            شريط الوقت أعلاه يغطي جميع التسجيلات في اليوم المحدد، ويمكنه تشغيل ٥ تسجيلات متتالية كقائمة تشغيل.
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -1020,86 +1586,18 @@ async function loadDeviceNames() {
     }
 }
 
-function getDirectUrlContext(){
-    const params = new URLSearchParams(window.location.search);
-    let decoded = {};
-    try {
-        decoded = params.get("params")
-            ? JSON.parse(decodeURIComponent(params.get("params")))
-            : {};
-    } catch(e) {
-        decoded = {};
-    }
-
-    const read = (...keys) => {
-        for (const key of keys) {
-            const direct = params.get(key);
-            if (direct != null && direct !== "") return direct;
-            if (decoded[key] != null && decoded[key] !== "") return decoded[key];
-        }
-        return "";
-    };
-
-    const deviceListValue = read("devices", "deviceIds", "deviceids", "ds16.devices");
-    const directDeviceId = read("deviceId", "deviceid", "device");
-
-    const ids = String(deviceListValue || directDeviceId || "")
-        .split(",")
-        .map(x => x.trim())
-        .filter(Boolean);
-
-    return {
-        params,
-        decoded,
-        ids,
-        directDeviceId: String(directDeviceId || ids[0] || ""),
-        date: read("date", "selectedDate", "day"),
-        tab: String(read("tab", "view") || "history").toLowerCase(),
-        camera: read("camera", "cam", "channel"),
-        mediaKind: String(read("kind", "mediaKind") || "").toLowerCase(),
-        autoplay: ["1", "true", "yes"].includes(String(read("autoplay", "autoPlay")).toLowerCase()),
-        embed: ["1", "true", "yes"].includes(String(read("iframe", "embed", "embedded")).toLowerCase())
-    };
-}
-
-function applyDirectUrlContext(){
-    const ctx = getDirectUrlContext();
-
-    document.body.classList.toggle("embed-mode", ctx.embed);
-
-    if (ctx.camera) {
-        const camera = String(ctx.camera).toLowerCase();
-        if (camera === "in" || camera === "inside" || camera === "2") syncCameraSelection(2, false);
-        else if (camera === "out" || camera === "outside" || camera === "1") syncCameraSelection(1, false);
-        else syncCameraSelection("all", false);
-    }
-
-    if (ctx.mediaKind === "image" || ctx.mediaKind === "video" || ctx.mediaKind === "all") {
-        capturedKind = ctx.mediaKind;
-        btnCapturedImages.classList.toggle("active", ctx.mediaKind === "image");
-        btnCapturedVideos.classList.toggle("active", ctx.mediaKind === "video");
-        btnCapturedAll.classList.toggle("active", ctx.mediaKind === "all");
-    }
-
-    if (ctx.date) syncDateSelection(ctx.date, false);
-    if (ctx.directDeviceId) syncDeviceSelection(ctx.directDeviceId, false);
-
-    if (["live", "captured", "history"].includes(ctx.tab)) showTab(ctx.tab);
-
-    if (ctx.directDeviceId && datePicker.value && (ctx.tab === "history" || !ctx.tab)) loadFiles();
-    if (ctx.directDeviceId && capturedDatePicker.value && ctx.tab === "captured") loadCapturedMedia();
-
-    if (ctx.directDeviceId && ctx.tab === "live" && ctx.autoplay) {
-        const camera = String(ctx.camera || "out").toLowerCase();
-        startLive(camera === "in" || camera === "inside" || camera === "2" ? "livein" : "liveout");
-    }
-}
-
 async function loadDeviceDropdown() {
     await loadDeviceNames();
 
-    const ctx = getDirectUrlContext();
-    const ids = ctx.ids;
+    const params = new URLSearchParams(window.location.search);
+    const decoded = params.get("params")
+        ? JSON.parse(decodeURIComponent(params.get("params")))
+        : {};
+
+    const ids = (decoded["ds16.devices"] || "")
+                    .split(",")
+                    .map(x => x.trim())
+                    .filter(Boolean);
 
     deviceSelect.innerHTML = '<option value="">اختر الجهاز</option>';
     liveDeviceSelect.innerHTML = '<option value="">اختر جهاز البث</option>';
@@ -1119,8 +1617,6 @@ async function loadDeviceDropdown() {
         liveDeviceSelect.innerHTML = '<option value="">لا يوجد أجهزة معرفة</option>';
         capturedDeviceSelect.innerHTML = '<option value="">لا يوجد أجهزة معرفة</option>';
     }
-
-    applyDirectUrlContext();
 }
 
 /* ===================== TIMELINE + FILE LIST ===================== */
@@ -1141,7 +1637,7 @@ function updateTimelineFiles(list){
     timelineSlider.value = 0;
 
     const f0 = allFilesForDate[0];
-    timelineLabel.textContent = `${f0.time || ""}`;
+    timelineLabel.textContent = `(${f0.filename}) - (${f0.time})`;
 }
 
 function timelineDragging(){
@@ -1155,7 +1651,7 @@ function updateTimelineLabelForIndex(idx){
         return;
     }
     const f = allFilesForDate[idx];
-    timelineLabel.textContent = `${f.time || ""}`;
+    timelineLabel.textContent = `(${f.filename}) - (${f.time})`;
 }
 
 // اختيار نقطة على شريط الوقت وتشغيل ٥ تسجيلات متتالية (سيرفر يقوم بالـ playlist)
@@ -1201,11 +1697,10 @@ function renderFileListForHour(){
     fileList.innerHTML = "";
     subset.forEach(v => {
         if (!v.filename) return;
-        const camLabel = String(cameraFilter) === "1" ? "كاميرا 1" : (String(cameraFilter) === "2" ? "كاميرا 2" : "كاميرا");
         fileList.innerHTML += `
             <div class="file-item" onclick="playVideo('${v.filename}','${v.deviceId}')">
-                <div class="time-label">${escapeHtml(camLabel)}</div>
-                <b>${escapeHtml(v.time || "")}</b>
+                <div class="time-label">${v.filename}</div>
+                <b>${v.time}</b>
             </div>
         `;
     });
@@ -1313,5 +1808,7 @@ showTab('history');
 loadDeviceDropdown();
 setStatus("جاهز للاستخدام. اختر جهازاً ثم تسجيل أو بث مباشر.");
 </script>
+
+
 </body>
 </html>
