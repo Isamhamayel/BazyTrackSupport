@@ -439,7 +439,7 @@ header .sub {
             </div>
 
             <div class="filters">
-                <select id="deviceSelect" onchange="loadFiles()">
+                <select id="deviceSelect" onchange="onSharedDeviceChanged('history')">
                     <option value="">اختر الجهاز</option>
                 </select>
                 <input type="date" id="datePicker" onchange="onSharedDateChanged('history')">
@@ -467,7 +467,7 @@ header .sub {
             </div>
 
             <div class="filters">
-                <select id="liveDeviceSelect">
+                <select id="liveDeviceSelect" onchange="onSharedDeviceChanged('live')">
                     <option value="">اختر جهاز البث</option>
                 </select>
             </div>
@@ -490,7 +490,7 @@ header .sub {
             </div>
 
             <div class="filters">
-                <select id="capturedDeviceSelect" onchange="loadCapturedMedia()">
+                <select id="capturedDeviceSelect" onchange="onSharedDeviceChanged('captured')">
                     <option value="">اختر الجهاز</option>
                 </select>
                 <input type="date" id="capturedDatePicker" onchange="onSharedDateChanged('captured')">
@@ -1078,6 +1078,32 @@ function syncCameraSelection(c, reload = true){
     if (capturedDeviceSelect.value && capturedDatePicker.value) loadCapturedMedia();
 }
 
+function syncDeviceSelection(value, reload = true){
+    value = String(value || "");
+
+    if (deviceSelect && deviceSelect.value !== value) deviceSelect.value = value;
+    if (liveDeviceSelect && liveDeviceSelect.value !== value) liveDeviceSelect.value = value;
+    if (capturedDeviceSelect && capturedDeviceSelect.value !== value) capturedDeviceSelect.value = value;
+
+    if (!reload) return;
+
+    lastDeviceIdForDate = null;
+    allFilesForDate = [];
+    selectedCapturedIndex = -1;
+
+    if (deviceSelect.value && datePicker.value) loadFiles();
+    if (capturedDeviceSelect.value && capturedDatePicker.value) loadCapturedMedia();
+}
+
+function onSharedDeviceChanged(source){
+    let value = "";
+    if (source === "captured") value = capturedDeviceSelect.value;
+    else if (source === "live") value = liveDeviceSelect.value;
+    else value = deviceSelect.value;
+
+    syncDeviceSelection(value, true);
+}
+
 function syncDateSelection(value, reload = true){
     if (!value) return;
 
@@ -1088,6 +1114,7 @@ function syncDateSelection(value, reload = true){
 
     lastDeviceIdForDate = null;
     allFilesForDate = [];
+    selectedCapturedIndex = -1;
 
     if (deviceSelect.value && datePicker.value) loadFiles();
     if (capturedDeviceSelect.value && capturedDatePicker.value) loadCapturedMedia();
