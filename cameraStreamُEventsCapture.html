@@ -464,6 +464,12 @@ header .sub {
                 <button class="cam-btn" onclick="loadCapturedMedia()">🔄 تحديث</button>
             </div>
 
+            <div class="media-kind-row">
+                <button id="btnCapturedCamAll" class="cam-btn active" onclick="setCapturedChannelFilter('all')">🔁 كل الكاميرات</button>
+                <button id="btnCapturedCamOut" class="cam-btn" onclick="setCapturedChannelFilter(1)">🚗 خارجية CH1</button>
+                <button id="btnCapturedCamIn" class="cam-btn" onclick="setCapturedChannelFilter(2)">👤 داخلية CH2</button>
+            </div>
+
             <div id="capturedList" class="media-list">
                 <div class="info-text">اختر جهازاً لعرض الصور والفيديوهات الملتقطة من TurboHive.</div>
             </div>
@@ -491,6 +497,12 @@ header .sub {
         <div class="controls-row">
             <button id="downloadBtn" class="btn secondary" type="button" onclick="openExternalDownload()" style="display:none;">
                 ⬇ فتح FLV في المتصفح
+            </button>
+            <button id="mediaPrevBtn" class="btn secondary" type="button" onclick="openPrevCapturedMedia()" style="display:none;">
+                ▶ السابق
+            </button>
+            <button id="mediaNextBtn" class="btn secondary" type="button" onclick="openNextCapturedMedia()" style="display:none;">
+                التالي ◀
             </button>
             <button id="mediaOpenBtn" class="btn secondary" type="button" onclick="openCurrentMedia()" style="display:none;">
                 🔗 فتح الملف
@@ -589,6 +601,7 @@ let selectedFile = null;
 
 // Captured media from TurboHive
 let capturedKind = "image";
+let capturedChannelFilter = "all";
 let capturedItems = [];
 let currentMediaUrl = "";
 let selectedCapturedIndex = -1;
@@ -604,6 +617,8 @@ const statusValue      = document.getElementById("statusValue");
 const modeBadge        = document.getElementById("modeBadge");
 const downloadBtn      = document.getElementById("downloadBtn");
 const mediaOpenBtn     = document.getElementById("mediaOpenBtn");
+const mediaPrevBtn     = document.getElementById("mediaPrevBtn");
+const mediaNextBtn     = document.getElementById("mediaNextBtn");
 const imagePlayer      = document.getElementById("imagePlayer");
 
 const tabHistory       = document.getElementById("tabHistory");
@@ -627,6 +642,9 @@ const btnCAll          = document.getElementById("btnCAll");
 const btnCapturedImages = document.getElementById("btnCapturedImages");
 const btnCapturedVideos = document.getElementById("btnCapturedVideos");
 const btnCapturedAll    = document.getElementById("btnCapturedAll");
+const btnCapturedCamAll = document.getElementById("btnCapturedCamAll");
+const btnCapturedCamOut = document.getElementById("btnCapturedCamOut");
+const btnCapturedCamIn  = document.getElementById("btnCapturedCamIn");
 const capturedList      = document.getElementById("capturedList");
 
 const timelineSlider   = document.getElementById("timelineSlider");
@@ -662,6 +680,7 @@ function showTab(tab){
         modeBadge.textContent = "صور وفيديو";
         modeBadge.style.background = "#fef3c7";
         modeBadge.style.color = "#92400e";
+        updateCapturedNavButtons();
         setStatus("اختر جهازاً لعرض الصور والفيديوهات الملتقطة.");
     }
 }
@@ -714,6 +733,8 @@ function manualPlayInIOS(){
 function cleanPlayer() {
     downloadBtn.style.display = "none";
     mediaOpenBtn.style.display = "none";
+    mediaPrevBtn.style.display = "none";
+    mediaNextBtn.style.display = "none";
 
     if (flvPlayer) {
         try {
@@ -994,15 +1015,34 @@ async function startLive(kind){
 /* ===================== CAPTURED MEDIA (TURBOHIVE VIA WEBAPP PROXY) ===================== */
 function setCapturedKind(kind){
     capturedKind = kind;
+    selectedCapturedIndex = -1;
     btnCapturedImages.classList.toggle("active", kind === "image");
     btnCapturedVideos.classList.toggle("active", kind === "video");
     btnCapturedAll.classList.toggle("active", kind === "all");
     loadCapturedMedia();
 }
 
+function setCapturedChannelFilter(channel){
+    capturedChannelFilter = channel;
+    selectedCapturedIndex = -1;
+    btnCapturedCamAll.classList.toggle("active", channel === "all");
+    btnCapturedCamOut.classList.toggle("active", String(channel) === "1");
+    btnCapturedCamIn.classList.toggle("active", String(channel) === "2");
+    loadCapturedMedia();
+}
+
+function getCapturedChannelLabel(channel){
+    const ch = String(channel || "");
+    if (ch === "1") return "خارجية CH1";
+    if (ch === "2") return "داخلية CH2";
+    return ch ? `CH${ch}` : "";
+}
+
 function cleanCapturedPreview(resetUrl = true){
     if (resetUrl) currentMediaUrl = "";
     mediaOpenBtn.style.display = "none";
+    mediaPrevBtn.style.display = "none";
+    mediaNextBtn.style.display = "none";
     imagePlayer.style.display = "none";
     imagePlayer.removeAttribute("src");
     videoPlayer.style.display = "block";
@@ -1066,6 +1106,9 @@ async function loadCapturedMedia(){
     }
 
     capturedList.innerHTML = '<div class="info-text">جارِ تحميل الصور والفيديوهات من TurboHive...</div>';
+    selectedCapturedIndex = -1;
+    currentMediaUrl = "";
+    cleanCapturedPreview();
     setStatus("تحميل الصور والفيديوهات من TurboHive...");
     showError("");
 
@@ -1086,6 +1129,12 @@ async function loadCapturedMedia(){
                `&toMs=${encodeURIComponent(dateRange.toMs)}`;
     }
 
+    // Optional server-side filter if your Apps Script/TurboHive proxy supports channel.
+    // Client-side channel filtering is still applied below.
+    if (capturedChannelFilter !== "all") {
+        url += `&channel=${encodeURIComponent(capturedChannelFilter)}`;
+    }
+
     try {
         const response = await fetch(url, { cache: "no-store" });
         const json = await response.json();
@@ -1098,6 +1147,10 @@ async function loadCapturedMedia(){
             capturedItems = capturedItems.filter(x => x.kind === "image");
         } else if (capturedKind === "video") {
             capturedItems = capturedItems.filter(x => x.kind === "video");
+        }
+
+        if (capturedChannelFilter !== "all") {
+            capturedItems = capturedItems.filter(x => String(x.channel || "") === String(capturedChannelFilter));
         }
 
         renderCapturedList();
@@ -1135,7 +1188,7 @@ function normalizeCapturedItems(items){
         return {
             id: x.id,
             imei: x.imei,
-            channel: x.channel,
+            channel: x.channel || inferChannelFromFileName(fileName),
             mediaType: x.mediaType,
             kind: kind,
             fileName: fileName || extractNameFromUrl(url),
@@ -1155,6 +1208,14 @@ function normalizeCapturedItems(items){
         seen[key] = true;
         return true;
     });
+}
+
+function inferChannelFromFileName(fileName){
+    const name = String(fileName || "").toUpperCase();
+    // Common Jimi/TurboHive names: ..._F_09.jpg = front/out, ..._I_10.jpg = inside/cabin
+    if (name.includes("_F_")) return 1;
+    if (name.includes("_I_")) return 2;
+    return "";
 }
 
 function inferMediaKind(fileName, url, apiKind){
@@ -1184,12 +1245,14 @@ function formatMediaTime(ms){
     if (!ms) return "";
     try {
         return new Date(Number(ms)).toLocaleString("en-GB", {
+            timeZone: "Asia/Amman",
             year:"numeric",
             month:"2-digit",
             day:"2-digit",
             hour:"2-digit",
             minute:"2-digit",
-            second:"2-digit"
+            second:"2-digit",
+            hour12:false
         });
     } catch(e){
         return "";
@@ -1207,6 +1270,7 @@ function formatFileSize(bytes){
 function renderCapturedList(){
     if (!capturedItems.length){
         capturedList.innerHTML = '<div class="info-text">لا يوجد صور أو فيديوهات لهذا الجهاز حسب الفلتر الحالي.</div>';
+        updateCapturedNavButtons();
         return;
     }
 
@@ -1214,10 +1278,11 @@ function renderCapturedList(){
 
     capturedItems.forEach((item, idx) => {
         const icon = item.kind === "image" ? "🖼" : (item.kind === "video" ? "🎞" : "📎");
-        const channel = item.channel ? `CH${item.channel}` : "";
+        const channel = getCapturedChannelLabel(item.channel);
         const time = formatMediaTime(item.captureTime || item.createdAt);
         const size = formatFileSize(item.fileSize);
-        const fileTitle = item.fileName || item.url;
+        const mediaTitle = time || "وقت غير معروف";
+        const mediaTypeLabel = item.kind === "image" ? "صورة" : (item.kind === "video" ? "فيديو" : "ملف");
 
         const thumb = item.kind === "image"
             ? `<img class="media-thumb" src="${escapeHtml(item.url)}" loading="lazy">`
@@ -1226,12 +1291,39 @@ function renderCapturedList(){
         capturedList.innerHTML += `
             <div id="capturedItem_${idx}" class="media-item" onclick="openCapturedMedia(${idx})">
                 ${thumb}
-                <div class="media-title">${icon} ${escapeHtml(fileTitle)}</div>
-                <div class="media-meta">${escapeHtml(channel)} ${time ? " · " + escapeHtml(time) : ""} ${size ? " · " + escapeHtml(size) : ""}</div>
+                <div class="media-title" style="direction:rtl;text-align:right;">${icon} ${escapeHtml(mediaTitle)} <span style="font-weight:normal;color:#6b7280;">(Amman)</span></div>
+                <div class="media-meta">${escapeHtml(channel)} · ${escapeHtml(mediaTypeLabel)} ${size ? " · " + escapeHtml(size) : ""}</div>
                 <div style="clear:both"></div>
             </div>
         `;
     });
+}
+
+function updateCapturedNavButtons(){
+    const hasSelected = selectedCapturedIndex >= 0 && capturedItems.length > 0;
+    const show = hasSelected ? "inline-block" : "none";
+
+    mediaPrevBtn.style.display = show;
+    mediaNextBtn.style.display = show;
+
+    if (!hasSelected) {
+        mediaPrevBtn.disabled = true;
+        mediaNextBtn.disabled = true;
+        return;
+    }
+
+    mediaPrevBtn.disabled = selectedCapturedIndex <= 0;
+    mediaNextBtn.disabled = selectedCapturedIndex >= capturedItems.length - 1;
+}
+
+function openPrevCapturedMedia(){
+    if (selectedCapturedIndex <= 0) return;
+    openCapturedMedia(selectedCapturedIndex - 1);
+}
+
+function openNextCapturedMedia(){
+    if (selectedCapturedIndex < 0 || selectedCapturedIndex >= capturedItems.length - 1) return;
+    openCapturedMedia(selectedCapturedIndex + 1);
 }
 
 function escapeHtml(value){
@@ -1256,13 +1348,14 @@ function openCapturedMedia(index){
     currentMediaUrl = item.url;
     cleanPlayer();
     mediaOpenBtn.style.display = "inline-block";
+    updateCapturedNavButtons();
     showError("");
 
     if (item.kind === "image"){
         videoPlayer.style.display = "none";
         imagePlayer.style.display = "block";
         imagePlayer.src = item.url;
-        setStatus(`عرض صورة ${item.channel ? "CH" + item.channel : ""}`);
+        setStatus(`عرض صورة ${getCapturedChannelLabel(item.channel)} · ${formatMediaTime(item.captureTime || item.createdAt)} Amman`);
         return;
     }
 
@@ -1280,7 +1373,7 @@ function playCapturedVideo(item){
     const ext = item.extension || getFileExtension(url);
 
     showLoading(true, "جارِ تشغيل الفيديو الملتقط...");
-    setStatus(`تشغيل فيديو ${ext.toUpperCase()}`);
+    setStatus(`تشغيل فيديو ${getCapturedChannelLabel(item.channel)} · ${formatMediaTime(item.captureTime || item.createdAt)} Amman`);
 
     videoPlayer.style.display = "block";
     imagePlayer.style.display = "none";
