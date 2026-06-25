@@ -486,7 +486,7 @@ header .sub {
         <div id="capturedPanel" class="card" style="display:none;">
             <div class="card-header">
                 <h3>الصور والفيديوهات الملتقطة</h3>
-                <small>من TurboHive عبر WebApp proxy</small>
+              
             </div>
 
             <div class="filters">
@@ -510,12 +510,10 @@ header .sub {
             </div>
 
             <div id="capturedList" class="media-list">
-                <div class="info-text">اختر جهازاً لعرض الصور والفيديوهات الملتقطة من TurboHive.</div>
+                <div class="info-text">اختر جهازاً لعرض الصور والفيديوهات الملتقطة  </div>
             </div>
 
-            <div class="media-note">
-                ملاحظة: التوكن لا يوجد داخل الصفحة. الصفحة تطلب البيانات من Google Apps Script فقط. التاريخ الافتراضي هو اليوم ويمكن تغييره.
-            </div>
+           
         </div>
 
     </div>
@@ -1141,11 +1139,11 @@ async function loadCapturedMedia(){
         return;
     }
 
-    capturedList.innerHTML = '<div class="info-text">جارِ تحميل الصور والفيديوهات من TurboHive...</div>';
+    capturedList.innerHTML = '<div class="info-text">جارِ تحميل الصور والفيديوهات  </div>';
     selectedCapturedIndex = -1;
     currentMediaUrl = "";
     cleanCapturedPreview();
-    setStatus("تحميل الصور والفيديوهات من TurboHive...");
+    setStatus("تحميل الصور والفيديوهات  ");
     showError("");
 
     const size = capturedKind === "video" ? 100 : 50;
@@ -1190,13 +1188,13 @@ async function loadCapturedMedia(){
         }
 
         renderCapturedList();
-        setStatus(`تم تحميل ${capturedItems.length} ملف من TurboHive`);
+        setStatus(`تم تحميل ${capturedItems.length} ملف  `);
 
     } catch(err){
         console.error("TurboHive media load error:", err);
-        capturedList.innerHTML = '<div class="info-text">حدث خطأ أثناء تحميل ملفات TurboHive.</div>';
-        showError("فشل تحميل الصور والفيديوهات من TurboHive.");
-        setStatus("فشل تحميل TurboHive");
+        capturedList.innerHTML = '<div class="info-text">حدث خطأ أثناء تحميل ملفات </div>';
+        showError("فشل تحميل الصور والفيديوهات من ");
+        setStatus("فشل تحميل ");
     }
 }
 
