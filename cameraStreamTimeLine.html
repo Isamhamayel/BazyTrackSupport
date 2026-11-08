@@ -339,12 +339,15 @@ header .sub {
                 <select id="hourPicker" onchange="renderFileListForHour()">
                     <option value="">الساعة</option>
                 </select>
-                <button type="button" id="refreshVideoListBtn" class="cam-btn" onclick="refreshFilesFromBigQuery()" title="قراءة أحدث التسجيلات من قاعدة البيانات دون إرسال FILELIST مرة ثانية">↻ تحديث قائمة الفيديوهات</button>
+                <button type="button" id="refreshVideoListBtn" class="cam-btn" onclick="refreshFilesFromBigQuery()" title="تحديث التسجيلات المحفوظة">↻ تحديث قائمة الفيديوهات</button>
             </div>
 
             <div id="todayFileListNotice" class="today-file-notice" role="status" aria-live="polite" hidden>
-                <strong>تحديث تسجيلات اليوم</strong>
-                <span id="todayFileListNoticeText"></span>
+                <strong>تسجيلات اليوم</strong>
+                <span id="todayFileListNoticeText">إذا لم تظهر التسجيلات الجديدة، يمكنك طلب القائمة من الكاميرا، ثم تحديث العرض بعد وصولها.</span>
+                <div style="margin-top:6px;">
+                    <button type="button" id="requestFileListBtn" class="cam-btn" onclick="requestTodayFileListManual()">📥 طلب قائمة التسجيلات من الكاميرا</button>
+                </div>
             </div>
 
             <div class="cam-buttons">
@@ -499,12 +502,12 @@ let lastDateForDate = null;
 let selectedFile = null;
 
 // Cache one full day per device/date; changing camera or hour never calls FILELIST.
-const BQ_PAGE_SIZE = 500;
+const BQ_PAGE_SIZE = 3000; // V17 server supports 1–3000 files per page
 let fullDayFiles = null;
 let fileLoadGeneration = 0;
 let bqRequestCounter = 0;
-const todayFileListSent = new Set(); // once per device + Amman date during page lifetime
-const todayFileListState = new Map(); // sending, accepted, failed (not camera upload completion)
+const todayFileListState = new Map(); // explicit user-request status by device and date
+let fileListCommandBusy = false;
 
 
 /* ===================== DOM SHORTCUTS ===================== */
@@ -529,6 +532,8 @@ const hourPicker       = document.getElementById("hourPicker");
 const fileList         = document.getElementById("fileList");
 const todayFileListNotice = document.getElementById("todayFileListNotice");
 const todayFileListNoticeText = document.getElementById("todayFileListNoticeText");
+const requestFileListBtn = document.getElementById("requestFileListBtn");
+const refreshVideoListBtn = document.getElementById("refreshVideoListBtn");
 const btnC1            = document.getElementById("btnC1");
 const btnC2            = document.getElementById("btnC2");
 
@@ -1151,63 +1156,64 @@ function fetchBigQueryPage(deviceId, recordingDate, offset) {
     }, '__bqFileCb_');
 }
 
-/** Only show the notice for the currently selected TODAY device/date.
- * Command acceptance is NOT proof the camera has uploaded its file inventory.
- */
+// FILELIST is never automatic: this notice and command are for TODAY only.
 function updateTodayFileNotice() {
     const id = String(deviceSelect.value || '').trim();
     const date = datePicker.value;
     const isToday = Boolean(id && date && date === ammanTodayDate());
     todayFileListNotice.hidden = !isToday;
     if (!isToday) return;
+
+    requestFileListBtn.disabled = fileListCommandBusy || !deviceImeis[id];
+    requestFileListBtn.textContent = fileListCommandBusy
+        ? 'جارِ إرسال الطلب...'
+        : '📥 طلب قائمة التسجيلات من الكاميرا';
+
     const state = todayFileListState.get(`${id}|${date}`) || 'idle';
-    if (state === 'sending') {
-        todayFileListNoticeText.textContent =
-            'جاري إرسال طلب قائمة التسجيلات إلى الكاميرا. ستظهر التسجيلات المحفوظة حالياً؛ قد يستغرق وصول القائمة الجديدة وحفظها بعض الوقت. بعدها اضغط «تحديث قائمة الفيديوهات».';
-    } else if (state === 'accepted') {
-        todayFileListNoticeText.textContent =
-            'تم قبول طلب قائمة التسجيلات. قد تستغرق الكاميرا بعض الوقت لإرسال الملفات وحفظها. التسجيلات المعروضة قد لا تكون محدثة بعد؛ اضغط «تحديث قائمة الفيديوهات» عندما تريد التحقق من وصول الملفات الجديدة.';
-    } else if (state === 'failed') {
-        todayFileListNoticeText.textContent =
-            'تعذر إرسال طلب قائمة التسجيلات إلى الكاميرا. يمكن عرض التسجيلات المحفوظة مسبقاً، وزر «تحديث قائمة الفيديوهات» يعيد القراءة من قاعدة البيانات فقط ولا يرسل الأمر مرة أخرى.';
-    } else {
-        todayFileListNoticeText.textContent =
-            'سيتم طلب قائمة التسجيلات مرة واحدة عند فتح تسجيلات اليوم. يمكنك الضغط على «تحديث قائمة الفيديوهات» لاحقاً لقراءة ما وصل إلى قاعدة البيانات.';
+    const notices = {
+        idle: 'إذا لم تظهر التسجيلات الجديدة، اطلب القائمة من الكاميرا ثم اضغط «تحديث قائمة الفيديوهات» بعد وصولها.',
+        sending: 'جارِ إرسال طلب القائمة إلى الكاميرا...',
+        accepted: 'تم إرسال طلب القائمة. قد يستغرق وصول التسجيلات بعض الوقت؛ اضغط «تحديث قائمة الفيديوهات» لاحقاً.',
+        failed: 'تعذر إرسال طلب القائمة إلى الكاميرا. يمكنك إعادة المحاولة.'
+    };
+    todayFileListNoticeText.textContent = notices[state] || notices.idle;
+}
+
+async function requestTodayFileListManual() {
+    const id = String(deviceSelect.value || '').trim();
+    const date = datePicker.value;
+    if (!id || date !== ammanTodayDate() || fileListCommandBusy) return;
+    const imei = String(deviceImeis[id] || '').trim();
+    if (!imei) {
+        showError('لا يوجد IMEI معرف لهذه المركبة.');
+        return;
+    }
+
+    fileListCommandBusy = true;
+    const key = `${id}|${date}`;
+    todayFileListState.set(key, 'sending');
+    updateTodayFileNotice();
+    showError('');
+    try {
+        await jsonpCall(WEBAPP_URL, {
+            type: 'requestFileList', deviceId: id, imei
+        }, '__fileListCmdCb_', 25000);
+        todayFileListState.set(key, 'accepted');
+    } catch (err) {
+        todayFileListState.set(key, 'failed');
+        showError(err.message || 'فشل إرسال طلب قائمة التسجيلات.');
+        console.error('Manual FILELIST failed:', err);
+    } finally {
+        fileListCommandBusy = false;
+        updateTodayFileNotice();
     }
 }
 
-/** Send FILELIST once per selected device and Amman day for this page session.
- * Do not block the BigQuery read while waiting for command acknowledgement.
- */
-async function requestTodayFileListOnce(deviceId, date) {
-    if (date !== ammanTodayDate()) return false;
-    const key = `${deviceId}|${date}`;
-    if (todayFileListSent.has(key)) return false;
-    const imei = String(deviceImeis[deviceId] || '');
-    todayFileListSent.add(key); // lock immediately so manual refresh cannot resend
-    if (!imei) {
-        todayFileListState.set(key, 'failed');
-        updateTodayFileNotice();
-        console.warn('FILELIST skipped: IMEI missing for device', deviceId);
-        return false;
-    }
-    todayFileListState.set(key, 'sending');
-    updateTodayFileNotice();
-    console.info('Requesting FILELIST once:', {deviceId, date});
-    try {
-        const result = await jsonpCall(WEBAPP_URL, {
-            type: 'requestFileList', deviceId: String(deviceId), imei
-        }, '__fileListCmdCb_', 25000);
-        todayFileListState.set(key, 'accepted');
-        console.info('FILELIST accepted by command API:', {deviceId, result});
-        updateTodayFileNotice();
-        return true;
-    } catch (err) {
-        todayFileListState.set(key, 'failed');
-        console.warn('FILELIST command failed:', deviceId, err);
-        updateTodayFileNotice();
-        return false;
-    }
+function setRefreshButtonLoading(loading) {
+    refreshVideoListBtn.disabled = Boolean(loading);
+    refreshVideoListBtn.textContent = loading
+        ? '⏳ جارِ تحميل التسجيلات...'
+        : '↻ تحديث قائمة الفيديوهات';
 }
 
 function refreshBigQueryDay(){
@@ -1219,10 +1225,9 @@ function refreshBigQueryDay(){
 
 function refreshFilesFromBigQuery() {
     // Explicit user-triggered read; NEVER resend FILELIST for this device/date.
-    // The same device/day remains locked by todayFileListSent.
+    // Invalidate the data, but retain the last displayed device/date so the
+    // existing list stays visible until the refreshed results arrive.
     fullDayFiles = null;
-    lastDeviceIdForDate = null;
-    lastDateForDate = null;
     return loadFiles();
 }
 
@@ -1238,30 +1243,38 @@ async function loadFiles(){
         lastDateForDate = null;
         fileList.textContent = 'اختر الجهاز والتاريخ لعرض التسجيلات.';
         updateTimelineFiles([]);
+        setRefreshButtonLoading(false);
         return;
     }
     if (lastDeviceIdForDate === id && lastDateForDate === date && fullDayFiles !== null) {
         refreshBigQueryDay();
         return;
     }
-    fileList.textContent = 'جارِ تحميل التسجيلات...';
-    setStatus('جاري تحميل قائمة التسجيلات...');
-
-    // TODAY: request FILELIST asynchronously ONCE and show the existing BQ files
-    // immediately. Never assume the camera has posted its new files already.
-    if (date === ammanTodayDate()) {
-        void requestTodayFileListOnce(id, date);
+    // Keep existing recordings visible during same-day refresh; no loading message
+    // in the file list or status bar. Loading appears ONLY in the button.
+    const sameDay = lastDeviceIdForDate === id && lastDateForDate === date;
+    if (!sameDay) {
+        fileList.replaceChildren();
+        updateTimelineFiles([]);
     }
+    setRefreshButtonLoading(true);
+    showError('');
 
     try {
+        const startedAt = performance.now();
         let collected = [];
         let offset = 0;
         for (let page = 0; page < 200; page++) {
+            const pageStartedAt = performance.now();
             const response = await fetchBigQueryPage(id, date, offset);
             if (generation !== fileLoadGeneration) return;
             const rows = response.files || [];
             collected.push(...rows);
-            fileList.textContent = `تم تحميل ${collected.length} تسجيل...`;
+            console.info('Camera history page timing', {
+                deviceId: id, date, page: page + 1, received: rows.length,
+                networkMs: Math.round(performance.now() - pageStartedAt),
+                queryMs: response.queryMs, backendMs: response.elapsedMs
+            });
             if (!response.hasMore) break;
             if (page === 199 || response.nextOffset <= offset) {
                 throw new Error('تعذر تحميل جميع صفحات التسجيلات.');
@@ -1288,7 +1301,10 @@ async function loadFiles(){
         lastDeviceIdForDate = id;
         lastDateForDate = date;
         refreshBigQueryDay();
-        setStatus(`تم تحميل ${list.length} تسجيل`);
+        console.info('Camera history total timing', {
+            deviceId: id, date, files: list.length,
+            totalMs: Math.round(performance.now() - startedAt)
+        });
 
         // No automatic refresh: the user decides when to re-read BigQuery.
         // This avoids presenting an incomplete file list as if upload finished.
@@ -1296,11 +1312,15 @@ async function loadFiles(){
         if (generation !== fileLoadGeneration) return;
         console.error('Camera file-list query error:', err);
         fullDayFiles = null;
-        lastDeviceIdForDate = null;
-        lastDateForDate = null;
-        updateTimelineFiles([]);
-        fileList.textContent = err.message || 'حدث خطأ أثناء تحميل التسجيلات.';
-        setStatus('فشل تحميل قائمة التسجيلات');
+        showError(err.message || 'حدث خطأ أثناء تحميل التسجيلات.');
+        if (!sameDay || !allFilesForDate.length) {
+            lastDeviceIdForDate = null;
+            lastDateForDate = null;
+            updateTimelineFiles([]);
+            fileList.textContent = 'تعذر تحميل التسجيلات.';
+        }
+    } finally {
+        if (generation === fileLoadGeneration) setRefreshButtonLoading(false);
     }
 }
 
