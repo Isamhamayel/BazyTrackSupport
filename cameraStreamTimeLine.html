@@ -101,7 +101,8 @@ header .sub {
 }
 
 .filters select,
-.filters input[type=date] {
+.filters input[type=date],
+.filters input[type=text] {
     padding:4px 6px;
     border-radius:6px;
     border:1px solid #d1d5db;
@@ -290,6 +291,19 @@ header .sub {
     .right { width:100%; }
     .file-list { max-height:30vh; }
 }
+
+.today-file-notice {
+    margin: 4px 0 8px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    border-radius: 7px;
+    padding: 8px;
+    color: #1e40af;
+    font-size: 11px;
+    line-height: 1.7;
+}
+.today-file-notice[hidden] { display: none; }
+.today-file-notice strong { display: block; margin-bottom: 2px; }
 </style>
 </head>
 
@@ -325,12 +339,26 @@ header .sub {
                 <select id="hourPicker" onchange="renderFileListForHour()">
                     <option value="">الساعة</option>
                 </select>
-                <button type="button" class="cam-btn" onclick="refreshFilesFromBigQuery()" title="تحديث التسجيلات دون إعادة إرسال أمر القائمة">↻ تحديث التسجيلات</button>
+                <button type="button" id="refreshVideoListBtn" class="cam-btn" onclick="refreshFilesFromBigQuery()" title="قراءة أحدث التسجيلات من قاعدة البيانات دون إرسال FILELIST مرة ثانية">↻ تحديث قائمة الفيديوهات</button>
+            </div>
+
+            <div id="todayFileListNotice" class="today-file-notice" role="status" aria-live="polite" hidden>
+                <strong>تحديث تسجيلات اليوم</strong>
+                <span id="todayFileListNoticeText"></span>
             </div>
 
             <div class="cam-buttons">
                 <button id="btnC1" class="cam-btn active" onclick="setCam(1)">🎦 كاميرا 1</button>
                 <button id="btnC2" class="cam-btn" onclick="setCam(2)">🎦 كاميرا 2</button>
+            </div>
+
+            <!-- Appears only if BazyTrack GO did not pass any device IDs. -->
+            <div id="manualDevicePanel" class="card" hidden style="padding:8px; background:#f9fafb; margin-bottom:6px;">
+                <div class="info-text" style="margin-bottom:5px;">لم يصل رقم المركبة من الصفحة الحالية. للتجربة يمكنك إدخال رقم الجهاز:</div>
+                <div class="filters">
+                    <input type="text" id="manualDeviceId" inputmode="numeric" placeholder="رقم الجهاز" aria-label="رقم الجهاز" style="max-width:150px;" onkeydown="if(event.key==='Enter') applyManualDeviceId()">
+                    <button type="button" class="cam-btn" onclick="applyManualDeviceId()">عرض التسجيلات</button>
+                </div>
             </div>
 
             <div id="fileList" class="file-list">
@@ -476,7 +504,7 @@ let fullDayFiles = null;
 let fileLoadGeneration = 0;
 let bqRequestCounter = 0;
 const todayFileListSent = new Set(); // once per device + Amman date during page lifetime
-let todayRefreshTimer = null;
+const todayFileListState = new Map(); // sending, accepted, failed (not camera upload completion)
 
 
 /* ===================== DOM SHORTCUTS ===================== */
@@ -499,6 +527,8 @@ const liveDeviceSelect = document.getElementById("liveDeviceSelect");
 const datePicker       = document.getElementById("datePicker");
 const hourPicker       = document.getElementById("hourPicker");
 const fileList         = document.getElementById("fileList");
+const todayFileListNotice = document.getElementById("todayFileListNotice");
+const todayFileListNoticeText = document.getElementById("todayFileListNoticeText");
 const btnC1            = document.getElementById("btnC1");
 const btnC2            = document.getElementById("btnC2");
 
@@ -864,29 +894,106 @@ async function loadDeviceNames() {
     }
 }
 
+// Support the standard BazyTrack GO ds16.devices parameter, plus URL-encoded
+// JSON (sometimes double encoded), direct ?deviceId=, and ?devices=.
+// Never list all devices simply because GO passed no scope.
+function normalizeDeviceIds(value) {
+    if (value == null) return [];
+    if (Array.isArray(value)) return value.flatMap(normalizeDeviceIds);
+    if (typeof value === 'number') return Number.isInteger(value) && value > 0 ? [String(value)] : [];
+    if (typeof value === 'object') return normalizeDeviceIds(value.id ?? value.deviceId ?? value.value ?? '');
+    const raw = String(value).trim();
+    if (!raw) return [];
+    if (raw[0] === '[') {
+        try { return normalizeDeviceIds(JSON.parse(raw)); } catch (_) {}
+    }
+    return raw.split(/[;,|\s]+/).filter(id => /^\d+$/.test(id));
+}
+
+function parseGoDevicePayload(raw) {
+    if (raw && typeof raw === 'object') return raw;
+    if (raw == null) return {};
+    let decoded = String(raw);
+    for (let i = 0; i < 3; i++) {
+        try {
+            const parsed = JSON.parse(decoded);
+            if (parsed && typeof parsed === 'object') return parsed;
+            if (typeof parsed === 'string' && parsed !== decoded) { decoded = parsed; continue; }
+        } catch (_) {}
+        try {
+            const next = decodeURIComponent(decoded);
+            if (next === decoded) break;
+            decoded = next;
+        } catch (_) { break; }
+    }
+    return {};
+}
+
+function findGoDeviceIds(payload) {
+    if (!payload || typeof payload !== 'object') return [];
+    const candidates = [
+        payload['ds16.devices'], payload.ds16?.devices,
+        payload.deviceId, payload.deviceIds, payload.devices,
+        payload.params && parseGoDevicePayload(payload.params)['ds16.devices']
+    ];
+    for (const candidate of candidates) {
+        const ids = normalizeDeviceIds(candidate);
+        if (ids.length) return ids;
+    }
+    return [];
+}
+
+function getRequestedDeviceIds() {
+    const qs = new URLSearchParams(window.location.search);
+    const embedded = findGoDeviceIds(parseGoDevicePayload(qs.get('params')));
+    const directlyPassed = [
+        qs.get('ds16.devices'), qs.get('deviceId'), qs.get('deviceIds'), qs.get('devices')
+    ];
+    const ids = embedded.length ? embedded : directlyPassed.flatMap(normalizeDeviceIds);
+    return [...new Set(ids)];
+}
+
+function selectSingleDevice(id) {
+    const cleanId = String(id || '').trim();
+    if (!/^\d+$/.test(cleanId)) return false;
+    const label = deviceNames[cleanId] || ('جهاز ' + cleanId);
+    [deviceSelect, liveDeviceSelect].forEach(select => {
+        if (![...select.options].some(o => o.value === cleanId)) {
+            select.add(new Option(label, cleanId));
+        }
+        select.value = cleanId;
+    });
+    const panel = document.getElementById('manualDevicePanel');
+    if (panel) panel.hidden = true;
+    loadFiles();
+    return true;
+}
+
+function applyManualDeviceId() {
+    const id = document.getElementById('manualDeviceId').value.trim();
+    if (!selectSingleDevice(id)) {
+        showError('أدخل رقم جهاز صحيحاً.');
+        return;
+    }
+    showError('');
+}
+
 async function loadDeviceDropdown() {
     await loadDeviceNames();
-    const params = new URLSearchParams(window.location.search);
-    let goParams = {};
-    try {
-        if (params.has('params')) goParams = JSON.parse(params.get('params'));
-    } catch (err) {
-        console.warn('Invalid GO device parameter:', err);
-    }
-    const idsFromGo = String(goParams['ds16.devices'] || '')
-        .split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s));
-    const directId = String(params.get('deviceId') || '').trim();
-    const ids = idsFromGo.length ? idsFromGo : (/^\d+$/.test(directId) ? [directId] : []);
-
+    const ids = getRequestedDeviceIds();
     deviceSelect.innerHTML = '<option value="">اختر الجهاز</option>';
     liveDeviceSelect.innerHTML = '<option value="">اختر جهاز البث</option>';
+    const manualPanel = document.getElementById('manualDevicePanel');
+    manualPanel.hidden = ids.length > 0;
+
     ids.forEach(id => {
         const name = deviceNames[id] || ('جهاز ' + id);
         deviceSelect.add(new Option(name, id));
         liveDeviceSelect.add(new Option(name, id));
     });
     if (!ids.length) {
-        fileList.textContent = 'افتح الصفحة من BazyTrack GO أو استخدم ?deviceId=277240 للاختبار.';
+        fileList.textContent = 'لم يتم تحديد مركبة بعد.';
+        setStatus('اختر جهازاً لعرض التسجيلات.');
         return;
     }
     if (ids.length === 1) {
@@ -1044,31 +1151,61 @@ function fetchBigQueryPage(deviceId, recordingDate, offset) {
     }, '__bqFileCb_');
 }
 
-/** Jimi FILELIST asks the device to POST its full inventory to our existing receiver.
- * Dispatch exactly once for a device + Amman day in this page session.
- * Only called on an initial user request for TODAY; not on channel/hour changes.
+/** Only show the notice for the currently selected TODAY device/date.
+ * Command acceptance is NOT proof the camera has uploaded its file inventory.
+ */
+function updateTodayFileNotice() {
+    const id = String(deviceSelect.value || '').trim();
+    const date = datePicker.value;
+    const isToday = Boolean(id && date && date === ammanTodayDate());
+    todayFileListNotice.hidden = !isToday;
+    if (!isToday) return;
+    const state = todayFileListState.get(`${id}|${date}`) || 'idle';
+    if (state === 'sending') {
+        todayFileListNoticeText.textContent =
+            'جاري إرسال طلب قائمة التسجيلات إلى الكاميرا. ستظهر التسجيلات المحفوظة حالياً؛ قد يستغرق وصول القائمة الجديدة وحفظها بعض الوقت. بعدها اضغط «تحديث قائمة الفيديوهات».';
+    } else if (state === 'accepted') {
+        todayFileListNoticeText.textContent =
+            'تم قبول طلب قائمة التسجيلات. قد تستغرق الكاميرا بعض الوقت لإرسال الملفات وحفظها. التسجيلات المعروضة قد لا تكون محدثة بعد؛ اضغط «تحديث قائمة الفيديوهات» عندما تريد التحقق من وصول الملفات الجديدة.';
+    } else if (state === 'failed') {
+        todayFileListNoticeText.textContent =
+            'تعذر إرسال طلب قائمة التسجيلات إلى الكاميرا. يمكن عرض التسجيلات المحفوظة مسبقاً، وزر «تحديث قائمة الفيديوهات» يعيد القراءة من قاعدة البيانات فقط ولا يرسل الأمر مرة أخرى.';
+    } else {
+        todayFileListNoticeText.textContent =
+            'سيتم طلب قائمة التسجيلات مرة واحدة عند فتح تسجيلات اليوم. يمكنك الضغط على «تحديث قائمة الفيديوهات» لاحقاً لقراءة ما وصل إلى قاعدة البيانات.';
+    }
+}
+
+/** Send FILELIST once per selected device and Amman day for this page session.
+ * Do not block the BigQuery read while waiting for command acknowledgement.
  */
 async function requestTodayFileListOnce(deviceId, date) {
     if (date !== ammanTodayDate()) return false;
     const key = `${deviceId}|${date}`;
     if (todayFileListSent.has(key)) return false;
     const imei = String(deviceImeis[deviceId] || '');
+    todayFileListSent.add(key); // lock immediately so manual refresh cannot resend
     if (!imei) {
+        todayFileListState.set(key, 'failed');
+        updateTodayFileNotice();
         console.warn('FILELIST skipped: IMEI missing for device', deviceId);
         return false;
     }
-    todayFileListSent.add(key); // lock before network call (prevents concurrent duplicates)
+    todayFileListState.set(key, 'sending');
+    updateTodayFileNotice();
     console.info('Requesting FILELIST once:', {deviceId, date});
     try {
         const result = await jsonpCall(WEBAPP_URL, {
             type: 'requestFileList', deviceId: String(deviceId), imei
         }, '__fileListCmdCb_', 25000);
+        todayFileListState.set(key, 'accepted');
         console.info('FILELIST accepted by command API:', {deviceId, result});
+        updateTodayFileNotice();
         return true;
     } catch (err) {
+        todayFileListState.set(key, 'failed');
         console.warn('FILELIST command failed:', deviceId, err);
-        // A failed command must not block reading the existing BigQuery history.
-        setStatus('تعذر إرسال أمر تحديث القائمة؛ عرض التسجيلات المحفوظة');
+        updateTodayFileNotice();
         return false;
     }
 }
@@ -1081,7 +1218,8 @@ function refreshBigQueryDay(){
 }
 
 function refreshFilesFromBigQuery() {
-    // Manual refresh does NOT resend FILELIST.
+    // Explicit user-triggered read; NEVER resend FILELIST for this device/date.
+    // The same device/day remains locked by todayFileListSent.
     fullDayFiles = null;
     lastDeviceIdForDate = null;
     lastDateForDate = null;
@@ -1092,6 +1230,7 @@ async function loadFiles(){
     const id = String(deviceSelect.value || '').trim();
     const date = datePicker.value;
     const generation = ++fileLoadGeneration;
+    updateTodayFileNotice();
     if (!id || !date) {
         fullDayFiles = null;
         allFilesForDate = [];
@@ -1108,12 +1247,11 @@ async function loadFiles(){
     fileList.textContent = 'جارِ تحميل التسجيلات...';
     setStatus('جاري تحميل قائمة التسجيلات...');
 
-    // Send FILELIST once if user is requesting today's date. Do not wait for
-    // the camera POST before showing the already stored recordings.
-    const isToday = date === ammanTodayDate();
-    const commandDispatched = isToday
-        ? await requestTodayFileListOnce(id, date) : false;
-    if (generation !== fileLoadGeneration) return;
+    // TODAY: request FILELIST asynchronously ONCE and show the existing BQ files
+    // immediately. Never assume the camera has posted its new files already.
+    if (date === ammanTodayDate()) {
+        void requestTodayFileListOnce(id, date);
+    }
 
     try {
         let collected = [];
@@ -1152,16 +1290,8 @@ async function loadFiles(){
         refreshBigQueryDay();
         setStatus(`تم تحميل ${list.length} تسجيل`);
 
-        // The camera will upload the requested list asynchronously to doPost.
-        // Refresh BigQuery once after 12 seconds to include any newly received files.
-        if (commandDispatched && isToday) {
-            if (todayRefreshTimer) clearTimeout(todayRefreshTimer);
-            todayRefreshTimer = setTimeout(() => {
-                if (deviceSelect.value !== id || datePicker.value !== date) return;
-                todayRefreshTimer = null;
-                refreshFilesFromBigQuery(); // reads only; does not send FILELIST again
-            }, 12000);
-        }
+        // No automatic refresh: the user decides when to re-read BigQuery.
+        // This avoids presenting an incomplete file list as if upload finished.
     } catch(err) {
         if (generation !== fileLoadGeneration) return;
         console.error('Camera file-list query error:', err);
