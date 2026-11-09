@@ -357,7 +357,7 @@ header .sub {
 
             <!-- Appears only if BazyTrack GO did not pass any device IDs. -->
             <div id="manualDevicePanel" class="card" hidden style="padding:8px; background:#f9fafb; margin-bottom:6px;">
-                <div class="info-text" style="margin-bottom:5px;">لم يصل رقم المركبة من الصفحة الحالية. للتجربة يمكنك إدخال رقم الجهاز:</div>
+                <div class="info-text" style="margin-bottom:5px;">لم يصل رقم المركبة من الصفحة الحالية. يمكنك إدخال رقم جهاز مسجّل في قائمة Devices:</div>
                 <div class="filters">
                     <input type="text" id="manualDeviceId" inputmode="numeric" placeholder="رقم الجهاز" aria-label="رقم الجهاز" style="max-width:150px;" onkeydown="if(event.key==='Enter') applyManualDeviceId()">
                     <button type="button" class="cam-btn" onclick="applyManualDeviceId()">عرض التسجيلات</button>
@@ -874,29 +874,43 @@ function setCam(c){
 }
 
 /* ===================== LOAD DEVICE NAMES/DROPDOWN ===================== */
+// Only devices explicitly listed in the Devices tab may appear in the UI.
+// If the sheet cannot be loaded, fail closed: do not display GO-only IDs.
 async function loadDeviceNames() {
     const query = "select A,B,C";
     const url = DEVICE_SHEET_URL + "&tq=" + encodeURIComponent(query);
 
     try {
-        const res = await fetch(url);
+        const res = await fetch(url, {cache: 'no-store'});
+        if (!res.ok) throw new Error(`Devices sheet HTTP ${res.status}`);
         const txt = await res.text();
-        const json = JSON.parse(txt.substring(47).slice(0,-2));
-        const rows = json.table.rows || [];
+        const json = JSON.parse(txt.substring(47).slice(0, -2));
+        if (json.status === 'error') throw new Error('Devices sheet query failed');
+        const rows = json.table?.rows || [];
+        const names = Object.create(null);
+        const imeis = Object.create(null);
 
         rows.forEach(r => {
-            const deviceId = r.c[0]?.v;
-            const imei     = r.c[1]?.v;
-            const name     = r.c[2]?.v;
-
-            if (!deviceId) return;
-
-            deviceNames[deviceId] = name || ("جهاز " + deviceId);
-            deviceImeis[deviceId] = imei;
+            const rawId = r.c?.[0]?.v;
+            const id = String(rawId ?? '').trim();
+            if (!/^\d+$/.test(id)) return;
+            names[id] = String(r.c?.[2]?.v || ('جهاز ' + id));
+            imeis[id] = String(r.c?.[1]?.v || '');
         });
-    } catch(err) {
-        console.error("Error loading device names:", err);
+
+        deviceNames = names;
+        deviceImeis = imeis;
+        return true;
+    } catch (err) {
+        deviceNames = Object.create(null);
+        deviceImeis = Object.create(null);
+        console.error('Error loading Devices tab:', err);
+        return false;
     }
+}
+
+function isInCameraDevicesSheet(id) {
+    return Object.prototype.hasOwnProperty.call(deviceNames, String(id ?? '').trim());
 }
 
 // Support the standard BazyTrack GO ds16.devices parameter, plus URL-encoded
@@ -960,8 +974,9 @@ function getRequestedDeviceIds() {
 
 function selectSingleDevice(id) {
     const cleanId = String(id || '').trim();
-    if (!/^\d+$/.test(cleanId)) return false;
-    const label = deviceNames[cleanId] || ('جهاز ' + cleanId);
+    // Manual entry must not bypass the Devices tab allowlist.
+    if (!/^\d+$/.test(cleanId) || !isInCameraDevicesSheet(cleanId)) return false;
+    const label = deviceNames[cleanId];
     [deviceSelect, liveDeviceSelect].forEach(select => {
         if (![...select.options].some(o => o.value === cleanId)) {
             select.add(new Option(label, cleanId));
@@ -977,33 +992,46 @@ function selectSingleDevice(id) {
 function applyManualDeviceId() {
     const id = document.getElementById('manualDeviceId').value.trim();
     if (!selectSingleDevice(id)) {
-        showError('أدخل رقم جهاز صحيحاً.');
+        showError('هذا الجهاز غير موجود في قائمة Devices.');
         return;
     }
     showError('');
 }
 
 async function loadDeviceDropdown() {
-    await loadDeviceNames();
-    const ids = getRequestedDeviceIds();
+    const loaded = await loadDeviceNames();
+    const requestedIds = getRequestedDeviceIds();
+    // Intersection: GO-supplied IDs AND rows present in Devices tab.
+    const allowedIds = requestedIds.filter(isInCameraDevicesSheet);
     deviceSelect.innerHTML = '<option value="">اختر الجهاز</option>';
     liveDeviceSelect.innerHTML = '<option value="">اختر جهاز البث</option>';
     const manualPanel = document.getElementById('manualDevicePanel');
-    manualPanel.hidden = ids.length > 0;
+    // Preserve manual testing, but allow only IDs actually in Devices tab.
+    manualPanel.hidden = !loaded || requestedIds.length > 0;
 
-    ids.forEach(id => {
-        const name = deviceNames[id] || ('جهاز ' + id);
+    if (!loaded) {
+        fileList.textContent = 'تعذر تحميل قائمة أجهزة الكاميرات.';
+        setStatus('تعذر تحميل قائمة أجهزة الكاميرات.');
+        return;
+    }
+    allowedIds.forEach(id => {
+        const name = deviceNames[id];
         deviceSelect.add(new Option(name, id));
         liveDeviceSelect.add(new Option(name, id));
     });
-    if (!ids.length) {
+    if (!requestedIds.length) {
         fileList.textContent = 'لم يتم تحديد مركبة بعد.';
         setStatus('اختر جهازاً لعرض التسجيلات.');
         return;
     }
-    if (ids.length === 1) {
-        deviceSelect.value = ids[0];
-        liveDeviceSelect.value = ids[0];
+    if (!allowedIds.length) {
+        fileList.textContent = 'لا توجد مركبات ضمن قائمة أجهزة الكاميرات.';
+        setStatus('لا توجد مركبات مطابقة في Devices.');
+        return;
+    }
+    if (allowedIds.length === 1) {
+        deviceSelect.value = allowedIds[0];
+        liveDeviceSelect.value = allowedIds[0];
         loadFiles();
     }
 }
